@@ -16,10 +16,13 @@ enum opcode {
     OP_FMULT,
     OP_DIV,
     OP_FDIV,
+    OP_XOR,
     OP_MOV,
     OP_CALL,
     OP_POP,
-    OP_RET
+    OP_RET,
+    OP_JMP,
+    OP_JIF
 };
 
 typedef union word {

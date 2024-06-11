@@ -23,8 +23,6 @@ void run(struct vm* vm) {
             Reg rb = READ_INST(vm).as_int;
             vm->regs[ra].as_double += vm->regs[rb].as_double;
             break;
-            
-            break;
         }
 
 
@@ -84,6 +82,7 @@ void run(struct vm* vm) {
             vm->regs[ra] = vm->regs[rb];
             break;
         }
+
 
         default: return;
     }
