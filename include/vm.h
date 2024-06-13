@@ -3,14 +3,55 @@
 
 #include <stdint.h>
 
-#define MEM_SIZE (1 << 16)
+#define MEM_SIZE (1 << 18)
 #define STACK_SIZE (1 << 10)
-#define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_int++ ])
+#define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ].as_u32)
+#define READ_16(vm) (READ_INST(vm) | READ_INST(vm) << 8)
+#define READ_24(vm) (READ_INST(vm) | READ_INST(vm) << 8 | READ_INST(vm) << 16)
+#define STACK_PUSH(vm, value) ({ \
+    vm->regs[RIP].as_u32--; \
+    vm->memory[ vm->regs[RSP].as_u32 ] = value; \
+})
+
+#define OPCODE_MASK 0xFF000000
+#define RD_MASK 0xF80000
+#define RA_MASK 0x7C000
+#define RB_MASK 0x3E00
+#define IMM_MASK 0x3FFF
+
+#define GET_RD(inst) ( (RD_MASK & inst) >> 19 )
+#define GET_RA(inst) ( (RA_MASK & inst) >> 14 )
+#define GET_RB(inst) ( (RB_MASK & inst) >> 9 )
+#define GET_IMM14(inst) ( IMM_MASK & inst )
+#define GET_IMM24(inst) ( (1 << 24) - 1 )
+
+#define BIN_OP_REG(vm, inst, as_type, op) ({ \
+    Reg rd = (RD_MASK & inst) >> 19; \
+    Reg ra = (RA_MASK & inst) >> 14; \
+    Reg rb = (RB_MASK & inst) >> 9; \
+    vm->regs[rd].as_type = vm->regs[ra].as_type op vm->regs[rb].as_type; \
+})
+
+#define BIN_OP_IMM(vm, inst, as_type, op) ({ \
+    Reg rd = (RD_MASK & inst) >> 19; \
+    Reg ra = (RA_MASK & inst) >> 14; \
+    uint32_t imm = (IMM_MASK & inst); \
+    vm->regs[rd].as_type = vm->regs[ra].as_type op imm; \
+})
+
+
+typedef enum interupt {
+    INTERUPT_STACK_OVERFLOW,
+    INTERUPT_STACK_UNDERFLOW,
+    INTERUPT_ILLEGAL_ACCESS
+}Interupt;
 
 enum opcode {
     OP_ADD,
+    OP_ADDI,
     OP_FADD,
     OP_SUB,
+    OP_SUBI,
     OP_FSUB,
     OP_MULT,
     OP_FMULT,
@@ -21,9 +62,24 @@ enum opcode {
     OP_CALL,
     OP_POP,
     OP_RET,
+    OP_CMP,
+    OP_FCMP,
     OP_JMP,
-    OP_JIF
+    OP_JE,
+    OP_JL,
+    OP_JB,
+
 };
+
+/* Binary Instruction Encoding (Register)
+ *
+ * OPCODE 31 - 24
+ * RD 23 - 19
+ * RA 18 - 14
+ * RB 13 - 9
+ * 00000000 8 - 0
+ *
+ * */
 
 typedef union word {
     uint8_t as_u8;
@@ -33,7 +89,6 @@ typedef union word {
     int as_int;
     float as_float;
     double as_double;
-    void* as_ref;
 }Word;
 
 /* R0-R7 general purpose 
