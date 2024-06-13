@@ -18,7 +18,6 @@ void run(struct vm* vm) {
             break;
 
         case OP_ADDI:
-            printf("rip: %d\n", vm->regs[RIP].as_u32);
             BIN_OP_IMM(vm, inst, as_int, +);
             break;
 
