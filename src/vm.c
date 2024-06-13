@@ -10,7 +10,6 @@ void init_vm(struct vm* vm) {
 void run(struct vm* vm) {
     uint32_t inst = READ_INST(vm);
     uint8_t opcode = (inst & OPCODE_MASK) >> 24;
-    printf("opcode: %d\n", opcode);
 
     switch(opcode) {
         case OP_ADD:
