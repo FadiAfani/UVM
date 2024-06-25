@@ -30,20 +30,20 @@ Token& Instruction::get_opcode() {
     return opcode;
 }
 
-void Instruction::set_rd(Token* _rd) {
+void Instruction::set_rd(const Token* _rd) {
     rd = _rd;
 }
 
-void Instruction::set_rs(Token* _rs) {
+void Instruction::set_rs(const Token* _rs) {
     rd = _rs;
 }
 
 
-void Instruction::set_rt(Token* _rt) {
+void Instruction::set_rt(const Token* _rt) {
     rd = _rt;
 }
 
-void Instruction::set_imm(Token* _imm) {
+void Instruction::set_imm(const Token* _imm) {
     imm = _imm;
 }
 

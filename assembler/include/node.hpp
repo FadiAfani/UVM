@@ -47,10 +47,10 @@ class Instruction : Node {
     
     public:
         Token& get_opcode();
-        void set_rd(Token* _rd);
-        void set_rs(Token* _rs);
-        void set_rt(Token* _rt);
-        void set_imm(Token* _imm);
+        void set_rd(const Token* _rd);
+        void set_rs(const Token* _rs);
+        void set_rt(const Token* _rt);
+        void set_imm(const Token* _imm);
 
     Instruction(Token& _opcode);
 
@@ -64,7 +64,6 @@ class Label : Node {
     Label();
 
     public:
-        vector<Instruction>& get_insts();
         void append_inst(const Instruction& inst);
 };
 

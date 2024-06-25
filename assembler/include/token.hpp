@@ -8,6 +8,7 @@ using namespace std;
 typedef enum TokenType {
     TOK_REG,
     TOK_MNEMONIC,
+    TOK_LABEL,
     TOK_INT,
     TOK_FLOAT,
     TOK_MINUS,

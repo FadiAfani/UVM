@@ -8,29 +8,9 @@ void Lexer::push_token(const Token& tok) { tokens.push_back(tok); }
 
 Lexer::Lexer(string _file_path) {
 
-
-    opcode_map["OP_ADDI"] = 0;
-    opcode_map["OP_ADD"] = 1;
-    opcode_map["OP_FADD"] = 2;
-    opcode_map["OP_SUB"] = 3;
-    opcode_map["OP_SUBI"] = 4;
-    opcode_map["OP_FSUB"] = 5;
-    opcode_map["OP_MULT"] = 6;
-    opcode_map["OP_FMULT"] = 7;
-    opcode_map["OP_DIV"] = 8;
-    opcode_map["OP_FDIV"] = 9;
-    opcode_map["OP_MOV"] = 10;
-    opcode_map["OP_POP"] = 11;
-    opcode_map["OP_RET"] = 12;
-    opcode_map["OP_CMP"] = 13;
-    opcode_map["OP_FCMP"] = 14;
-    opcode_map["OP_JMP"] = 15;
-    opcode_map["OP_JE"] = 16;
-    opcode_map["OP_JL"] = 17;
-    opcode_map["OP_JB"] = 18;
-
-
     file_path = _file_path;
+    row = 0;
+    col = 0;
 
 }
 
@@ -42,7 +22,14 @@ void Lexer::tokenize_word() {
     while ((c = file.get()) && isalpha(c)) {
         v += c;
     }
-    tok.set_type(TOK_WORD);
+
+    if (asm_data.reg_map.count(v) > 0) {
+        tok.set_type(TOK_REG);
+    } else if (asm_data.opcode_map.count(v) > 0){
+        tok.set_type(TOK_MNEMONIC);
+    } else {
+        tok.set_type(TOK_LABEL);
+    }
             
 }
 
@@ -90,7 +77,7 @@ void Lexer::tokenize() {
                 } else if (isspace(c)) {
                     break;
                 } else {
-                    cout << (string) "unrecognized symbol: " + c + "\n";
+                    cout << (string) "unrecognized symbol: " + c + "\n" << endl;
                     return;
                 }
 
@@ -104,7 +91,7 @@ void Lexer::tokenize() {
 int main() {
     Lexer* lexer = new Lexer("../test.uasm");
     lexer->tokenize();
-    cout << lexer->get_tokens()->size();
+    cout << lexer->get_tokens().size() << endl;
 }
 
 

@@ -2,6 +2,7 @@
 #define LEXER_H
 
 #include "../include/token.hpp"
+#include "asm_data.hpp"
 #include <fstream>
 #include <vector>
 #include <unordered_map>
@@ -10,16 +11,16 @@
 using namespace std;
 
 
+
 class Lexer {
 
     private:
-        int col = 0;
-        int row = 0;
+        int col;
+        int row;
         vector<Token> tokens;
         string file_path;
         ifstream file;
-        unordered_map<string, uint8_t> opcode_map;
-        unordered_map<string, uint8_t> reg_map;
+        AsmData asm_data;
 
     public:
         int get_col();
