@@ -55,7 +55,7 @@ void run(struct vm* vm) {
         {
             Reg rd = GET_RD(inst);
             Reg ra = GET_RA(inst);
-            vm->regs[ra] = vm->regs[ra];
+            vm->regs[rd] = vm->regs[ra];
             break;
         }
         case OP_CMP:

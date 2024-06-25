@@ -1,5 +1,6 @@
 #include <criterion/criterion.h>
 #include "../include/vm.h"
+#include <stdio.h>
 
 struct vm vm;
 
@@ -35,11 +36,51 @@ Test(vm_tests, test_sub) {
 }
 
 
-Test(vm_tests, test_mult) {
-    vm.regs[R1].as_int = 10;
-    vm.regs[R2].as_int = 5;
-    vm.memory[0].as_u32 = OP_MULT << 24 | R0 << 19 | R1 << 14 | R2 << 9;
+Test(vm_tests, test_mov) {
+    vm.regs[R1].as_int = 20;
+    vm.memory[0].as_u32 = OP_MOV << 24 | R0 << 19 | R1 << 14;
     run(&vm);
-    cr_expect(vm.regs[R0].as_int == 50, "R0 should have hold a value of 50");
+    cr_expect(vm.regs[R0].as_int == 20, "R0 should have hold a value of 20");
 }
+
+
+Test(vm_tests, test_cmp_lt) {
+    vm.regs[R0].as_int = 10;
+    vm.regs[R1].as_int = 20;
+    vm.memory[0].as_u32 = OP_CMP << 24 | R0 << 19 | R1 << 14;
+    run(&vm);
+    cr_expect(vm.regs[RFLG].as_int == -1, "RFLG should have hold a value of 1");
+
+}
+
+Test(vm_tests, test_cmp_eq) {
+
+    vm.regs[R0].as_int = 20;
+    vm.regs[R1].as_int = 20;
+    vm.memory[0].as_u32 = OP_CMP << 24 | R0 << 19 | R1 << 14;
+    run(&vm);
+    cr_expect(vm.regs[RFLG].as_int == 0, "RFLG should have hold a value of 0");
+}
+
+
+Test(vm_tests, test_cmp_bt) {
+
+    vm.regs[R0].as_int = 30;
+    vm.regs[R1].as_int = 20;
+    vm.memory[0].as_u32 = OP_CMP << 24 | R0 << 19 | R1 << 14;
+    run(&vm);
+    cr_expect(vm.regs[RFLG].as_int == 1, "RFLG should have hold a value of 1");
+
+}
+
+
+Test(vm_tests, test_jmp) {
+
+    vm.memory[0].as_u32 = OP_JMP << 24 | (uint32_t) 41;
+    run(&vm);
+    cr_expect(vm.regs[RIP].as_u32 == 41, "RIP should have hold a value of 41");
+
+}
+
+
 
