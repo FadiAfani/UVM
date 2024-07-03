@@ -17,6 +17,9 @@ typedef enum TokenType {
     TOK_DIV,
     TOK_LBRAC,
     TOK_RBRAC,
+    TOK_COMMA,
+    TOK_DOT,
+    TOK_COLON,
 }TokenType;
 
 class Token {
@@ -27,6 +30,7 @@ class Token {
 
     public:
         Token(string _value, TokenType _type);
+        Token(string _value, int _line, int _tok_beg, TokenType _type);
         Token();
         string& get_value();
         int get_line(); 
@@ -35,6 +39,9 @@ class Token {
         
         void set_value(string _value);
         void set_type(TokenType _type); 
+        void set_line(int _line);
+        void set_tok_beg(int _tok_beg);
+        void print();
 };
 
 

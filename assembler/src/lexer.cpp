@@ -3,10 +3,10 @@
 int Lexer::get_col() { return col; }
 int Lexer::get_row() { return row; }
 vector<Token>& Lexer::get_tokens() { return tokens; }
-void Lexer::push_token(const Token& tok) { tokens.push_back(tok); }
+void Lexer::push_token(Token tok) { tokens.push_back(tok); }
 
 
-Lexer::Lexer(string _file_path) {
+Lexer::Lexer(string _file_path) : asm_data(AsmData()) {
 
     file_path = _file_path;
     row = 0;
@@ -14,12 +14,11 @@ Lexer::Lexer(string _file_path) {
 
 }
 
-void Lexer::tokenize_word() {
+void Lexer::tokenize_word(Token& tok) {
 
-    Token tok;
     char c;
     string& v = tok.get_value();
-    while ((c = file.get()) && isalpha(c)) {
+    while ((c = file.get()) && isalpha(c) || isdigit(c) || c == '_') {
         v += c;
     }
 
@@ -34,8 +33,7 @@ void Lexer::tokenize_word() {
 }
 
 
-void Lexer::tokenize_number() {
-    Token tok; 
+void Lexer::tokenize_number(Token& tok) {
     char c;
     string& v = tok.get_value();
     while ((c = file.get()) && isdigit(c)) {
@@ -43,7 +41,6 @@ void Lexer::tokenize_number() {
     }
     if (c != '.') {
         tok.set_type(TOK_INT);
-        push_token(tok);
         return;
     }
     tok.set_type(TOK_FLOAT);
@@ -53,7 +50,7 @@ void Lexer::tokenize_number() {
         v += c;
     }
 
-    push_token(tok);
+
     
 }
 
@@ -63,35 +60,56 @@ void Lexer::tokenize() {
     file.open(file_path);
     char c;
     while ((c = file.get()) > -1) {
+        Token tok;
+        tok.set_line(col);
+        tok.set_tok_beg(row);
         switch(c) {
+            case '[':
+                tok.set_type(TOK_LBRAC);
+                push_token(tok);
+                break;
+            case ']':
+                tok.set_type(TOK_RBRAC);
+                push_token(tok);
+                break;
+            case ',':
+                tok.set_type(TOK_COMMA);
+                push_token(tok);
+                break;
+            case ':':
+                tok.set_type(TOK_COLON);
+                push_token(tok);
+                break;
+            case '.':
+                tok.set_type(TOK_DOT);
+                push_token(tok);
+                break;
             default:
                 if (isalpha(c)) {
                     file.unget();
-                    tokenize_word();
-
-                }
-                else if (isdigit(c)) {
+                    tokenize_word(tok);
+                    push_token(tok);
+                    break;
+                } else if (isdigit(c)) {
                     file.unget();
-                    tokenize_number();
+                    tokenize_number(tok);
+                    push_token(tok);
+                    break;
                 
                 } else if (isspace(c)) {
                     break;
                 } else {
                     cout << (string) "unrecognized symbol: " + c + "\n" << endl;
-                    return;
+                    exit(EXIT_FAILURE);
                 }
 
-                break;
         }
+
     }
+
     file.close();
 }
 
 
-int main() {
-    Lexer* lexer = new Lexer("../test.uasm");
-    lexer->tokenize();
-    cout << lexer->get_tokens().size() << endl;
-}
 
 

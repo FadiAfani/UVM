@@ -26,10 +26,10 @@ class Lexer {
         int get_col();
         int get_row();
         vector<Token>& get_tokens();
-        void push_token(const Token& tok);
+        void push_token(Token tok);
         Lexer(string _file_path);
-        void tokenize_word();
-        void tokenize_number();
+        void tokenize_word(Token& tok);
+        void tokenize_number(Token& tok);
         void tokenize();
 
 

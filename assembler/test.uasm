@@ -1,1 +1,2 @@
-addi rsp 3
+main:
+    addi r1 r1 4
