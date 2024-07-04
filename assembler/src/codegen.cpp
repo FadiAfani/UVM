@@ -26,7 +26,7 @@ uint32_t Compiler::compile_inst(Instruction inst) {
             uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
             uint8_t rs = this->asm_data.reg_map.at(inst.get_operand(1)->get_value());
             uint8_t rt = this->asm_data.reg_map.at(inst.get_operand(2)->get_value());
-            cinst = opcode | rd << 24 | rs << 19 | rt << 14;
+            cinst = opcode << 24 | rd << 19 | rs << 14 | rt << 9;
             break;
         }
         case OP_ADDI:
@@ -46,8 +46,8 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         case OP_JL:
         case OP_CALL:
         {
-            uint32_t imm = this->compile_imm(*inst.get_operand(2));
-            cinst = opcode | imm << 24;
+            uint32_t imm = this->compile_imm(*inst.get_operand(1));
+            cinst = opcode << 24 | imm;
             break;
         }
         case OP_CMP:
@@ -56,7 +56,7 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         {
             uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
             uint8_t rs = this->asm_data.reg_map.at(inst.get_operand(1)->get_value());
-            cinst = opcode | rd << 24 | rs << 19;
+            cinst = opcode << 24 | rd << 19 | rs << 14;
             break;
         }
         case OP_POP:
@@ -101,6 +101,8 @@ void Compiler::compile() {
             this->output_file.write((char*) &b, 4);
         }
     }
+    uint32_t halt = OP_HALT << 24;
+    this->output_file.write((char*) &halt, 4);
     this->output_file.close();
 }
 

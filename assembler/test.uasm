@@ -1,2 +1,4 @@
 main:
     addi r1 r1 4
+    addi r2 r2 5
+    add r1 r2 r1

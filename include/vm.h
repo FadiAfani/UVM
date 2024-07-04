@@ -5,7 +5,7 @@
 
 #define MEM_SIZE (1 << 18)
 #define STACK_SIZE (1 << 10)
-#define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ].as_u32)
+#define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ])
 #define READ_16(vm) (READ_INST(vm) | READ_INST(vm) << 8)
 #define READ_24(vm) (READ_INST(vm) | READ_INST(vm) << 8 | READ_INST(vm) << 16)
 #define STACK_PUSH(vm, value) ({ \
@@ -67,6 +67,7 @@ enum opcode {
     OP_JE,
     OP_JL,
     OP_JB,
+    OP_HALT
 
 };
 
@@ -125,7 +126,7 @@ typedef enum reg {
 
 struct vm {
     Word regs[RAX + 1];
-    Word memory[MEM_SIZE];
+    uint32_t memory[MEM_SIZE];
 };
 
 void init_vm(struct vm* vm);

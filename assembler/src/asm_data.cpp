@@ -21,6 +21,7 @@ AsmData::AsmData() {
     opcode_map["je"] = 16;
     opcode_map["jl"] = 17;
     opcode_map["jb"] = 18;
+    opcode_map["halt"] = 19;
 
     reg_map["r0"] = R0;
     reg_map["r1"] = R1;
