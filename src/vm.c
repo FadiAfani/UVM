@@ -132,6 +132,37 @@ void run(struct vm* vm) {
                 vm->regs[RIP].as_u32 = label;
                 break;
             }
+            case OP_JBE:
+            {
+                uint32_t label = GET_IMM24(inst);
+                if (vm->regs[RFLG].as_int >= 0 )
+                    vm->regs[RIP].as_u32 = label;
+                break;
+            }
+
+            case OP_JLE:
+            {
+                uint32_t label = GET_IMM24(inst);
+                if (vm->regs[RFLG].as_int <= 0 )
+                    vm->regs[RIP].as_u32 = label;
+                break;
+            }
+
+            case OP_JNE:
+            {
+                uint32_t label = GET_IMM24(inst);
+                if (vm->regs[RFLG].as_int != 0 )
+                    vm->regs[RIP].as_u32 = label;
+                break;
+            }
+            case OP_MOVI:
+            {
+                Reg rd = GET_RD(inst);
+                uint16_t imm = GET_IMM14(inst);
+                vm->regs[rd].as_u32 = imm;
+                break;
+
+            }
             
             default: return;
         }

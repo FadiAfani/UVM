@@ -83,11 +83,18 @@ Test(vm_tests, test_cmp_bt) {
 
 Test(vm_tests, test_jmp) {
 
-    vm.memory[0] = OP_JMP << 24 | (uint32_t) 41;
+    vm.memory[0] = OP_JMP << 24 | 41;
     vm.memory[1] = OP_HALT << 24;
     run(&vm);
     cr_expect(vm.regs[RIP].as_u32 == 41, "RIP should have hold a value of 41");
+}
 
+
+Test(vm_tests, test_movi) {
+    vm.memory[0] = OP_MOVI << 24 | R1 << 19 | 15;
+    vm.memory[1] = OP_HALT << 24;
+    run(&vm);
+    cr_expect(vm.regs[R1].as_u32 == 15, "R1 should hold a value of 15");
 }
 
 

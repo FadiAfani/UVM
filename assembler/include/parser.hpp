@@ -18,20 +18,20 @@ class Parser {
     size_t cursor;
     AsmData asm_data;
     vector<Error> errors;
-    unordered_map<string, vector<Instruction>> labels;
+    unordered_map<string, pair<uint, vector<Instruction>>> labels;
 
     public:
         Parser(vector<Token>& _tokens);
         Token& read_token();
         Token& peek_next();
-        unordered_map<string, vector<Instruction>>& get_labels();
+        unordered_map<string, pair<uint, vector<Instruction>>>& get_labels();
         bool consume(TokenType type);
         void report_error(string err_msg);
         vector<Instruction>* get_insts(Token& label);
         bool at_end();
 
         Instruction parse_inst();
-        void parse_label();
+        pair<uint, vector<Instruction>> parse_label(uint addr);
         void parse();
 
 

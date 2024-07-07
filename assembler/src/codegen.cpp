@@ -2,9 +2,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 
-Compiler::Compiler(const std::unordered_map<string, std::vector<Instruction>>& labels, string fp) : labels(labels), asm_data(AsmData()) {
+Compiler::Compiler(const std::unordered_map<string, std::pair<uint, std::vector<Instruction>>>& labels, string fp) : labels(labels), asm_data(AsmData()) {
     this->fp = fp;
 }
 
@@ -43,10 +44,19 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         case OP_JMP:
         case OP_JB:
         case OP_JE:
+        case OP_JNE:
+        case OP_JLE:
+        case OP_JBE:
         case OP_JL:
+        {
+            uint label = this->labels.at(inst.get_operand(0)->get_value()).first;
+            cinst = opcode << 24 | label;
+            break;
+
+        }
         case OP_CALL:
         {
-            uint32_t imm = this->compile_imm(*inst.get_operand(1));
+            uint32_t imm = this->compile_imm(*inst.get_operand(0));
             cinst = opcode << 24 | imm;
             break;
         }
@@ -59,8 +69,19 @@ uint32_t Compiler::compile_inst(Instruction inst) {
             cinst = opcode << 24 | rd << 19 | rs << 14;
             break;
         }
+
+        case OP_MOVI:
+        {
+            uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
+            uint16_t imm = this->compile_imm(*inst.get_operand(1));
+            cinst = opcode << 24 | rd << 19 | imm;
+            break;
+        }
+
         case OP_POP:
         case OP_RET:
+        case OP_HALT:
+            cinst = opcode << 24;
             break;
     }
 
@@ -82,7 +103,7 @@ uint32_t Compiler::compile_imm(Token& t) {
 }
 
 std::vector<uint32_t> Compiler::compile_label(const string& label) { 
-    const std::vector<Instruction>& insts = this->labels.at(label);
+    const std::vector<Instruction>& insts = this->labels.at(label).second;
     std::vector<uint32_t> vec;
     for (Instruction inst : insts) {
         uint32_t bytes = this->compile_inst(inst);
@@ -91,22 +112,20 @@ std::vector<uint32_t> Compiler::compile_label(const string& label) {
     return vec;
 }
 void Compiler::compile() {
-    size_t addr_beg = 0;
     this->output_file.open(this->fp);
+    std::vector<pair<string, uint>> sorted_keys;
+
     for (const auto& kv : this->labels) {
-        this->set_addr(kv.first, addr_beg);
-        std::vector<uint32_t> code = this->compile_label(kv.first);
-        addr_beg += code.size();
-        for (const uint32_t b : code) {
-            this->output_file.write((char*) &b, 4);
-        }
+        sorted_keys.push_back(pair<string, uint>(kv.first, kv.second.first));
+    }
+    std::sort(sorted_keys.begin(), sorted_keys.end(), [](auto a, auto b) {return a.second < b.second;});
+    for (const auto& k : sorted_keys) {
+        std::vector<uint32_t> code = this->compile_label(k.first);
+        this->output_file.write((char*) code.data(), code.size() * 4);
     }
     uint32_t halt = OP_HALT << 24;
     this->output_file.write((char*) &halt, 4);
     this->output_file.close();
 }
 
-void Compiler::set_addr(const string &label, uint32_t addr) {
-    this->label_addr[label] = addr;
-}
 

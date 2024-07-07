@@ -29,7 +29,7 @@ bool Parser::consume(TokenType type) {
 vector<Instruction>* Parser::get_insts(Token& label) {
     vector<Instruction>* vec = nullptr;
     try {
-        vec = &this->labels.at(label.get_value());
+        vec = &this->labels.at(label.get_value()).second;
     } catch(out_of_range e) {
         cout << e.what() << endl;
     }
@@ -38,7 +38,7 @@ vector<Instruction>* Parser::get_insts(Token& label) {
 
 }
 
-unordered_map<string, vector<Instruction>>& Parser::get_labels() { return labels;}
+unordered_map<string, pair<uint, vector<Instruction>>>& Parser::get_labels() { return labels;}
 
 Instruction Parser::parse_inst() {
     Token& tok = this->read_token();
@@ -88,6 +88,9 @@ Instruction Parser::parse_inst() {
         case OP_JB:
         case OP_JE:
         case OP_JL:
+        case OP_JNE:
+        case OP_JLE:
+        case OP_JBE:
         case OP_CALL:
             inst.set_operand(0, this->read_token());
 
@@ -108,8 +111,17 @@ Instruction Parser::parse_inst() {
 
             break;
 
+        case OP_MOVI:
+            inst.set_operand(0, this->read_token());
+            err = consume(TOK_REG);
+
+            inst.set_operand(1, this->read_token());
+            err = consume(TOK_INT) || consume(TOK_FLOAT);
+            break;
+
         case OP_POP:
         case OP_RET:
+        case OP_HALT:
             break;
     }
 
@@ -119,8 +131,7 @@ Instruction Parser::parse_inst() {
 
 bool Parser::at_end() { return this->cursor >= this->tokens.size() - 1; }
 
-void Parser::parse_label() {
-    Token& label = read_token();
+pair<uint, vector<Instruction>> Parser::parse_label(uint addr) {
     consume(TOK_LABEL);
     consume(TOK_COLON);
     bool indent = false;
@@ -131,12 +142,16 @@ void Parser::parse_label() {
         Instruction inst = parse_inst();
         vec.push_back(inst);
     }
-    this->labels[label.get_value()] = vec;
+    return pair<uint, vector<Instruction>>(addr, vec);
 
 }
 
 void Parser::parse() {
+    uint next_addr = 0;
     while(!this->at_end() && read_token().get_type() == TOK_LABEL) {
-        parse_label();
+        Token& label = read_token();
+        pair<uint, vector<Instruction>> p = parse_label(next_addr);
+        next_addr += p.second.size();
+        this->labels[label.get_value()] = p;
     }
 }

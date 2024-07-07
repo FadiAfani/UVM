@@ -35,7 +35,7 @@
 #define BIN_OP_IMM(vm, inst, as_type, op) ({ \
     Reg rd = (RD_MASK & inst) >> 19; \
     Reg ra = (RA_MASK & inst) >> 14; \
-    uint32_t imm = (IMM_MASK & inst); \
+    uint16_t imm = (IMM_MASK & inst); \
     vm->regs[rd].as_type = vm->regs[ra].as_type op imm; \
 })
 
@@ -67,7 +67,11 @@ enum opcode {
     OP_JE,
     OP_JL,
     OP_JB,
-    OP_HALT
+    OP_HALT,
+    OP_JNE,
+    OP_JBE,
+    OP_JLE,
+    OP_MOVI,
 
 };
 

@@ -20,6 +20,7 @@ int main(int argc, char** argv) {
     Parser parser(lexer.get_tokens());
     parser.parse();
 
+
     Compiler compiler(parser.get_labels(), out);
     compiler.compile();
 

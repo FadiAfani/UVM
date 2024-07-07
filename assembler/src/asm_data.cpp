@@ -2,26 +2,30 @@
 
 AsmData::AsmData() {
 
-    opcode_map["add"] = 0;
-    opcode_map["addi"] = 1;
-    opcode_map["fadd"] = 2;
-    opcode_map["sub"] = 3;
-    opcode_map["subi"] = 4;
-    opcode_map["fsub"] = 5;
-    opcode_map["mult"] = 6;
-    opcode_map["fmult"] = 7;
-    opcode_map["div"] = 8;
-    opcode_map["fdiv"] = 9;
-    opcode_map["mov"] = 10;
-    opcode_map["pop"] = 11;
-    opcode_map["ret"] = 12;
-    opcode_map["cmp"] = 13;
-    opcode_map["fcmp"] = 14;
-    opcode_map["jmp"] = 15;
-    opcode_map["je"] = 16;
-    opcode_map["jl"] = 17;
-    opcode_map["jb"] = 18;
-    opcode_map["halt"] = 19;
+    opcode_map["add"] = OP_ADD;
+    opcode_map["addi"] = OP_ADDI;
+    opcode_map["fadd"] = OP_FADD;
+    opcode_map["sub"] = OP_FSUB;
+    opcode_map["subi"] = OP_SUBI;
+    opcode_map["fsub"] = OP_FSUB;
+    opcode_map["mult"] = OP_MULT;
+    opcode_map["fmult"] = OP_FMULT;
+    opcode_map["div"] = OP_DIV;
+    opcode_map["fdiv"] = OP_FDIV;
+    opcode_map["mov"] = OP_MOV;
+    opcode_map["pop"] = OP_POP;
+    opcode_map["ret"] = OP_RET;
+    opcode_map["cmp"] = OP_CMP;
+    opcode_map["fcmp"] = OP_FCMP;
+    opcode_map["jmp"] = OP_JMP;
+    opcode_map["je"] = OP_JE;
+    opcode_map["jl"] = OP_JL;
+    opcode_map["jb"] = OP_JB;
+    opcode_map["halt"] = OP_HALT;
+    opcode_map["jne"] = OP_JNE;
+    opcode_map["jle"] = OP_JLE;
+    opcode_map["jbe"] = OP_JBE;
+    opcode_map["movi"] = OP_MOVI;
 
     reg_map["r0"] = R0;
     reg_map["r1"] = R1;
