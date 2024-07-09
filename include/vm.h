@@ -72,6 +72,8 @@ enum opcode {
     OP_JBE,
     OP_JLE,
     OP_MOVI,
+    OP_LDR,
+    OP_STR
 
 };
 
