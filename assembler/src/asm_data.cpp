@@ -26,8 +26,6 @@ AsmData::AsmData() {
     opcode_map["jle"] = OP_JLE;
     opcode_map["jbe"] = OP_JBE;
     opcode_map["movi"] = OP_MOVI;
-    opcode_map["ldr"] = OP_LDR;
-    opcode_map["str"] = OP_STR;
 
     reg_map["r0"] = R0;
     reg_map["r1"] = R1;

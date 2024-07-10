@@ -17,6 +17,7 @@ Error::Error(std::string _file, std::string _msg, int _err_line) {
 }
 
 void Error::set_file(std::string _file) {
+void Error::set_file(std::string _file) {
     file = _file;
 }
 

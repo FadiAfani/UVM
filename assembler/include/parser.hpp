@@ -26,18 +26,13 @@ class Parser {
         Token& peek_next();
         vector<Error>& get_errors();
         unordered_map<string, pair<uint, vector<Instruction>>>& get_labels();
-        inline bool consume(TokenType type, string err_msg);
-        inline bool consume_any(vector<TokenType> types, string err_msg);
-        inline bool consume_optional(TokenType type);
-        void report_error(string err_msg, int line);
+        bool consume(TokenType type);
+        void report_error(string err_msg);
         vector<Instruction>* get_insts(Token& label);
         bool at_end();
         Instruction parse_inst();
         pair<uint, vector<Instruction>> parse_label(uint addr);
         void parse();
-        vector<Token> parse_mem_addr();
-        void print_errors();
-
 
 
 };
