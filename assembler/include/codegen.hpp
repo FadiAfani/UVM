@@ -19,7 +19,6 @@ class Compiler {
 
         uint32_t compile_inst(Instruction inst);
         uint32_t compile_imm(Token& t);
-        uint32_t compile_addr(Token& addr, Token& sign, Token& shift);
         std::vector<uint32_t> compile_label(const string& label);
         uint32_t get_addr(const string& label);
         void compile();

@@ -23,7 +23,6 @@
 #define GET_RA(inst) ( (RA_MASK & inst) >> 14 )
 #define GET_RB(inst) ( (RB_MASK & inst) >> 9 )
 #define GET_IMM14(inst) ( ((1 << 14) - 1) & inst )
-#define GET_IMM19(inst) ( ((1 << 19) - 1) & inst )
 #define GET_IMM24(inst) ( ((1 << 24) - 1) & inst )
 
 #define BIN_OP_REG(vm, inst, as_type, op) ({ \
@@ -73,6 +72,8 @@ enum opcode {
     OP_JBE,
     OP_JLE,
     OP_MOVI,
+    OP_LDR,
+    OP_STR
 
 };
 

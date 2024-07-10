@@ -3,24 +3,24 @@
 
 Error::Error() {}
 
-Error::Error(std::string _file, std::string _msg, int _err_line, int _err_beg) {
+Error::Error(const char* _file, const char* _msg, int _err_line, int _err_beg) {
     file = _file;
     msg = _msg;
     err_line = _err_line;
     err_beg = _err_beg;
 }
 
-Error::Error(std::string _file, std::string _msg, int _err_line) {
+Error::Error(const char* _file, const char* _msg, int _err_line) {
     file = _file;
     msg = _msg;
     err_line = _err_line;
 }
 
-void Error::set_file(std::string _file) {
+void Error::set_file(const char* _file) {
     file = _file;
 }
 
-void Error::set_msg(std::string _msg) {
+void Error::set_msg(const char* _msg) {
     msg = _msg;
 }
 

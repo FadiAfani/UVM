@@ -1,7 +1,15 @@
 main:
-    movi r1 10
-    addi r1 50
-    addi r1 50
-    addi r1 50
-    addi r1 50
-    addi r1 50
+    movi r3 10
+    jmp loop
+    
+loop:
+    cmp r2 r3
+    je exit
+    addi r2 r2 1
+    addi r1 r1 5
+    jmp loop
+
+
+exit:
+    halt
+

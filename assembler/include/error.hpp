@@ -12,10 +12,10 @@ class Error {
     public:
         std::string to_string();
         Error();
-        Error(std::string _file, std::string _msg, int _err_line);
-        Error(std::string _file, std::string _msg, int _err_line, int _err_beg);
-        void set_file(std::string _file);
-        void set_msg(std::string _msg);
+        Error(const char* _file, const char* _msg, int _err_line);
+        Error(const char* _file, const char* _msg, int _err_line, int _err_beg);
+        void set_file(const char* _file);
+        void set_msg(const char* _msg);
         void set_err_line(int _err_line);
         void set_err_beg(int _err_beg);
 
