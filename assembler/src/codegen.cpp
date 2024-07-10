@@ -9,6 +9,7 @@ Compiler::Compiler(const std::unordered_map<string, std::pair<uint, std::vector<
     this->fp = fp;
 }
 
+
 uint32_t Compiler::compile_inst(Instruction inst) {
     Token& t = inst.get_opcode();
     int opcode = this->asm_data.opcode_map.at(t.get_value());
@@ -49,14 +50,14 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         case OP_JBE:
         case OP_JL:
         {
-            uint label = this->labels.at(inst.get_operand(0)->get_value()).first;
+            uint label = compile_imm(*inst.get_operand(0));
             cinst = opcode << 24 | label;
             break;
 
         }
         case OP_CALL:
         {
-            uint32_t imm = this->compile_imm(*inst.get_operand(0));
+            uint32_t imm = compile_imm(*inst.get_operand(0));
             cinst = opcode << 24 | imm;
             break;
         }
@@ -78,6 +79,21 @@ uint32_t Compiler::compile_inst(Instruction inst) {
             break;
         }
 
+        case OP_STR:
+        case OP_LDR:
+        {
+            uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
+            uint8_t rs = this->asm_data.reg_map.at(inst.get_operand(1)->get_value());
+            int16_t imm = compile_imm(*inst.get_operand(2)); 
+            TokenType sign = inst.get_operand(2)->get_type();
+            if (sign == TOK_MINUS) {
+                imm = -imm;
+            }
+            cinst = opcode << 24 | rd << 19 | imm;
+            break;
+        }
+
+
         case OP_POP:
         case OP_RET:
         case OP_HALT:
@@ -94,13 +110,37 @@ uint32_t Compiler::compile_imm(Token& t) {
     if (t.get_type() == TOK_FLOAT) {
         float f = std::stof(t.get_value().data());
         std::memcpy(&imm, &f, 4);
-    } else {
+    } else if (t.get_type() == TOK_INT){
         int i = std::stoi(t.get_value().data());
         std::memcpy(&imm, &i, 4);
+    } else {
+        imm = this->labels.at(t.get_value()).first;
     }
-
+ 
     return imm;
 }
+
+uint32_t Compiler::compile_addr(Token& addr, Token& sign, Token& shift) {
+    uint32_t _addr = 0;
+    TokenType addr_t = addr.get_type();
+    if (addr_t == TOK_LABEL) {
+        _addr = this->labels.at(addr.get_value()).first;
+    } else if (addr_t == TOK_REG) {
+        _addr = this->asm_data.reg_map.at(addr.get_value());
+    } else {
+        _addr = compile_imm(addr);
+    }
+    uint32_t _shift = compile_imm(shift);
+    if (sign.get_type() == TOK_PLUS) {
+        _addr += _shift;
+    } else {
+        _addr -= _shift;
+    }
+
+    return _addr;
+
+}
+
 
 std::vector<uint32_t> Compiler::compile_label(const string& label) { 
     const std::vector<Instruction>& insts = this->labels.at(label).second;

@@ -158,7 +158,7 @@ void run(struct vm* vm) {
             case OP_MOVI:
             {
                 Reg rd = GET_RD(inst);
-                uint16_t imm = GET_IMM14(inst);
+                uint32_t imm = GET_IMM19(inst);
                 vm->regs[rd].as_u32 = imm;
                 break;
 
@@ -166,8 +166,9 @@ void run(struct vm* vm) {
             case OP_LDR:
             {
                 Reg rd = GET_RD(inst);
-                uint16_t imm = GET_IMM14(inst);
-                vm->regs[rd].as_u32 = vm->memory[imm];
+                Reg rs = GET_RA(inst);
+                int16_t imm = GET_IMM14(inst);
+                vm->regs[rd].as_u32 = vm->memory[vm->regs[rs].as_u64 + imm];
                 break;
 
             }
@@ -175,8 +176,9 @@ void run(struct vm* vm) {
             case OP_STR:
             {
                 Reg rd = GET_RD(inst);
-                uint16_t imm = GET_IMM14(inst);
-                vm->memory[imm] = vm->regs[rd].as_u32;
+                Reg rs = GET_RA(inst);
+                int16_t imm = GET_IMM14(inst);
+                vm->memory[vm->regs[rs].as_u64 + imm] = vm->regs[rd].as_u32;
                 break;
             }
             
