@@ -8,10 +8,7 @@
 #define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ])
 #define READ_16(vm) (READ_INST(vm) | READ_INST(vm) << 8)
 #define READ_24(vm) (READ_INST(vm) | READ_INST(vm) << 8 | READ_INST(vm) << 16)
-#define STACK_PUSH(vm, value) ({ \
-    vm->regs[RIP].as_u32--; \
-    vm->memory[ vm->regs[RSP].as_u32 ] = value; \
-})
+#define STACK_PUSH(vm, value) ( vm->memory[ --vm->regs[RSP].as_u32 ] = value )
 
 #define OPCODE_MASK 0xFF000000
 #define RD_MASK 0xF80000
@@ -59,6 +56,7 @@ enum opcode {
     OP_FDIV,
     OP_MOV,
     OP_CALL,
+    OP_PUSH,
     OP_POP,
     OP_RET,
     OP_CMP,
@@ -100,7 +98,7 @@ typedef union word {
 /* R0-R7 general purpose 
  * R8-R15 floating-point 
  * RSP - stack pointer
- * RBP - frame pointer
+ * RFP - frame pointer
  * RIP - instruction pointer
  * RFLG - condition result
  * RAX - return value
@@ -124,7 +122,7 @@ typedef enum reg {
     R14,
     R15,
     RSP,
-    RBP,
+    RFP,
     RIP,
     RFLG,
     RAX,

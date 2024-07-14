@@ -56,7 +56,7 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         }
         case OP_CALL:
         {
-            uint32_t imm = this->compile_imm(*inst.get_operand(0));
+            uint32_t imm = this->labels.at(inst.get_operand(0)->get_value()).first;
             cinst = opcode << 24 | imm;
             break;
         }
@@ -77,8 +77,30 @@ uint32_t Compiler::compile_inst(Instruction inst) {
             cinst = opcode << 24 | rd << 19 | imm;
             break;
         }
+        case OP_STR:
+        case OP_LDR:
+        {
+            uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
+            uint8_t rs = this->asm_data.reg_map.at(inst.get_operand(1)->get_value());
+            uint16_t imm = 0;
+            TokenType sign = inst.get_operand(2)->get_type();
+            if (sign == TOK_MINUS) {
+                imm = (1 << 13) | compile_imm(*inst.get_operand(3));
+            } else {
+                imm = compile_imm(*inst.get_operand(3));
+            }
+            cinst = opcode << 24 | rd << 19 | rs << 14 | imm;
+            break;
 
+        }
+
+        case OP_PUSH:
         case OP_POP:
+        {
+            uint8_t rd = this->asm_data.reg_map.at(inst.get_operand(0)->get_value());
+            cinst = opcode << 24 | rd << 19;
+            break;
+        }
         case OP_RET:
         case OP_HALT:
             cinst = opcode << 24;

@@ -18,7 +18,8 @@ void Lexer::tokenize_word(Token& tok) {
 
     char c;
     string& v = tok.get_value();
-    while ((c = file.get()) && isalpha(c) || isdigit(c) || c == '_') {
+    while ((c = file.peek()) && isalpha(c) || isdigit(c) || c == '_') {
+        file.get();
         v += c;
     }
 
@@ -36,9 +37,11 @@ void Lexer::tokenize_word(Token& tok) {
 void Lexer::tokenize_number(Token& tok) {
     char c;
     string& v = tok.get_value();
-    while ((c = file.get()) && isdigit(c)) {
+    while ((c = file.peek()) && isdigit(c)) {
+        file.get();
         v += c;
     }
+
     if (c != '.') {
         tok.set_type(TOK_INT);
         return;
@@ -46,7 +49,8 @@ void Lexer::tokenize_number(Token& tok) {
     tok.set_type(TOK_FLOAT);
     v += ".";
 
-    while ((c = file.get()) && isdigit(c)) {
+    while ((c = file.peek()) && isdigit(c)) {
+        file.get();
         v += c;
     }
 
@@ -82,6 +86,15 @@ void Lexer::tokenize() {
                 break;
             case '.':
                 tok.set_type(TOK_DOT);
+                push_token(tok);
+                break;
+            case '+':
+                tok.set_type(TOK_PLUS);
+                push_token(tok);
+                break;
+
+            case '-':
+                tok.set_type(TOK_MINUS);
                 push_token(tok);
                 break;
             default:

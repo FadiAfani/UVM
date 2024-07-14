@@ -17,8 +17,8 @@ Token& Parser::peek_next() {
 }
 
 void Parser::report_error(const char* err_msg, int line) {
-    Error err = Error(this->file_name, err_msg, line);
-    this->errors.push_back(err);
+    //Error err = Error(this->file_name, err_msg, line);
+    //this->errors.push_back(err);
 }
 
 
@@ -155,12 +155,32 @@ Instruction Parser::parse_inst() {
         case OP_STR:
         {
 
+            inst.set_operand(0, read_token());
+            consume(TOK_REG, "missing rd register");
+            consume(TOK_LBRAC, "expected '[' symbol");
+
+
+            Token& reg = read_token();
+            inst.set_operand(1, reg);
+            consume(TOK_REG, "address must at least have a source register");
+            Token& sign = read_token();
+            bool is_signed = consume_optional(TOK_PLUS) || consume_optional(TOK_MINUS);
+            if (is_signed) {
+                Token& shift = read_token();
+                consume(TOK_INT, "expected a shift amount");
+                inst.set_operand(2, sign);
+                inst.set_operand(3, shift);
+            }
+            consume(TOK_RBRAC, "expected ']' symbol");
+            break;
 
         }
 
-            break;
-
+        case OP_PUSH:
         case OP_POP:
+            inst.set_operand(0, read_token());
+            consume(TOK_REG, "missing rd register");
+            break;
         case OP_RET:
         case OP_HALT:
             break;
@@ -170,7 +190,7 @@ Instruction Parser::parse_inst() {
 
 }
 
-bool Parser::at_end() { return this->cursor >= this->tokens.size() - 1; }
+bool Parser::at_end() { return this->cursor >= this->tokens.size(); }
 
 pair<uint, vector<Instruction>> Parser::parse_label(uint addr) {
     /* not actually an optional

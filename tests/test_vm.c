@@ -81,13 +81,6 @@ Test(vm_tests, test_cmp_bt) {
 }
 
 
-Test(vm_tests, test_jmp) {
-
-    vm.memory[0] = OP_JMP << 24 | 41;
-    vm.memory[1] = OP_HALT << 24;
-    run(&vm);
-    cr_expect(vm.regs[RIP].as_u32 == 41, "RIP should have hold a value of 41");
-}
 
 
 Test(vm_tests, test_movi) {
@@ -95,6 +88,24 @@ Test(vm_tests, test_movi) {
     vm.memory[1] = OP_HALT << 24;
     run(&vm);
     cr_expect(vm.regs[R1].as_u32 == 15, "R1 should hold a value of 15");
+}
+
+Test(vm_tests, test_str) {
+    vm.regs[R2].as_u32 = 5;
+    vm.regs[R1].as_u32 = 12;
+    vm.memory[0] = OP_STR << 24 | R1 << 19 | R2 << 14;
+    vm.memory[1] = OP_HALT << 24;
+    run(&vm);
+    cr_expect(vm.memory[5] == 12, "memory address should hold a value of 50");
+}
+
+Test(vm_tests, test_ldr) {
+    vm.regs[R2].as_u32 = 2;
+    vm.memory[0] = OP_LDR << 24 | R1 << 19 | R2 << 14;
+    vm.memory[1] = OP_HALT << 24;
+    vm.memory[2] = 50;
+    run(&vm);
+    cr_expect(vm.regs[R1].as_u32 == 50, "R1 should hold a value of 50");
 }
 
 

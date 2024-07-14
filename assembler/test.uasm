@@ -1,15 +1,25 @@
 main:
-    movi r3 10
-    jmp loop
-    
-loop:
-    cmp r2 r3
-    je exit
-    addi r2 r2 1
-    addi r1 r1 5
-    jmp loop
+    push rfp
+    mov rfp rsp
+    movi r1 20
+    movi r2 5
+    addi r3 rip 5
+    subi rsp rsp 3
+    str r3 [rfp - 1]
+    str r1 [rfp - 2]
+    str r2 [rfp - 3]
+    call foo
+    mov r1 rax
+    addi rsp rsp 3
+    pop rfp
+    ret
 
-
-exit:
-    halt
+foo:
+    push rfp
+    mov rfp rsp
+    ldr r1 [rfp + 1]
+    ldr r2 [rfp + 2]
+    add rax r1 r2
+    pop rfp
+    ret
 

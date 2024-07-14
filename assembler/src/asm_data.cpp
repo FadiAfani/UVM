@@ -28,6 +28,8 @@ AsmData::AsmData() {
     opcode_map["movi"] = OP_MOVI;
     opcode_map["ldr"] = OP_LDR;
     opcode_map["str"] = OP_STR;
+    opcode_map["push"] = OP_PUSH;
+    opcode_map["call"] = OP_CALL;
 
     reg_map["r0"] = R0;
     reg_map["r1"] = R1;
@@ -48,6 +50,6 @@ AsmData::AsmData() {
     reg_map["rip"] = RIP;
     reg_map["rsp"] = RSP;
     reg_map["rax"] = RAX;
-    reg_map["rbp"] = RBP;
+    reg_map["rfp"] = RFP;
     reg_map["rflg"] = RFLG;
 }

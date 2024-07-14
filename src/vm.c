@@ -1,10 +1,12 @@
 #include "../include/vm.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void init_vm(struct vm* vm) {
     memset(vm, 0, sizeof(struct vm));
-    vm->regs[RSP].as_u32 = STACK_SIZE + 1;
+    vm->regs[RSP].as_u32 = MEM_SIZE;
+    vm->regs[RFP].as_u32 = MEM_SIZE;
 }
 
 void run(struct vm* vm) {
@@ -12,6 +14,7 @@ void run(struct vm* vm) {
 
         uint32_t inst = READ_INST(vm);
         uint8_t opcode = (inst & OPCODE_MASK) >> 24;
+        printf("rfp: %d, opcode: %d\n", vm->regs[RFP].as_u32, opcode);
 
         switch(opcode) {
             case OP_ADD:
@@ -120,15 +123,21 @@ void run(struct vm* vm) {
             case OP_POP: 
             {
                 Reg rd = GET_RD(inst);
-                vm->regs[rd].as_u32 = vm->memory[ vm->regs[RSP].as_u32 ];
-                vm->regs[RSP].as_u32++;
+                vm->regs[rd].as_u32 = vm->memory[ vm->regs[RSP].as_u32++ ];
+                break;
+            }
+
+            case OP_PUSH:
+            {
+                Reg rd = GET_RD(inst);
+                STACK_PUSH(vm, vm->regs[rd].as_u32);
                 break;
             }
 
             case OP_CALL:
             {
                 uint32_t label = GET_IMM24(inst);
-                STACK_PUSH(vm, vm->regs[RSP].as_u32);
+                //STACK_PUSH(vm, vm->regs[RSP].as_u32);
                 vm->regs[RIP].as_u32 = label;
                 break;
             }
@@ -166,8 +175,14 @@ void run(struct vm* vm) {
             case OP_LDR:
             {
                 Reg rd = GET_RD(inst);
+                Reg rs = GET_RA(inst);
                 uint16_t imm = GET_IMM14(inst);
-                vm->regs[rd].as_u32 = vm->memory[imm];
+                int msb = (imm & ( 1 << 13 )) >> 13;
+                int16_t shift = (( 1 << 13 ) - 1) & imm;
+                if (msb) {
+                    shift = -shift;
+                }
+                vm->regs[rd].as_u32 = vm->memory[vm->regs[rs].as_u32 + shift];
                 break;
 
             }
@@ -175,12 +190,31 @@ void run(struct vm* vm) {
             case OP_STR:
             {
                 Reg rd = GET_RD(inst);
+                Reg rs = GET_RA(inst);
                 uint16_t imm = GET_IMM14(inst);
-                vm->memory[imm] = vm->regs[rd].as_u32;
+                int msb = (imm & ( 1 << 13 )) >> 13;
+                int16_t shift = (( 1 << 13 ) - 1) & imm;
+                if (msb) {
+                    shift = -shift;
+                }
+                //printf("mem: %d, %d\n", vm->regs[rs].as_u32, shift);
+                vm->memory[vm->regs[rs].as_u32 + shift] = vm->regs[rd].as_u32;
                 break;
             }
+
+
+            case OP_RET:
+                if (vm->regs[RFP].as_u32 < MEM_SIZE) {
+                    vm->regs[RIP].as_u32 = vm->memory[vm->regs[RFP].as_u32 - 1];
+                }
+                printf("ret: %d\n", vm->regs[RIP].as_u32);
+                break;
+            case OP_HALT: return;
             
-            default: return;
+            default: 
+                printf("opcode: %d\n", vm->regs[RIP].as_u32);
+                printf("unrecognized opcode: %d\n", opcode);
+                exit(EXIT_FAILURE);
         }
 
     }
