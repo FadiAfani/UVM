@@ -12,26 +12,19 @@
 		} \
 })
 
-#define ALLOCATE(ptr, type, capacity) ({\
-    ptr = malloc(sizeof(type) * capacity); \
+#define ALLOCATE(ptr, esize, capacity) ({\
+    ptr = malloc(esize * capacity); \
     CHECK_FAILED_ALLOCATION(ptr); \
 })
 
-#define REALLOCATE(ptr, prev_size, type) ({\
-	type* new_ptr = realloc(ptr, SCALE_FACTOR * sizeof(type) * prev_size); \
-    if (!new_ptr) { \
+#define REALLOCATE(ptr, esize, prev_size) ({\
+	void* new_ptr = realloc(ptr, SCALE_FACTOR * esize * prev_size); \
+    if (new_ptr == NULL) { \
 		    printf("Realloc failed\n"); \
 			free(ptr); \
 			exit(EXIT_FAILURE); \
 		} \
 	ptr = new_ptr; \
-})
-
-#define INIT_DYN_ARR(ptr, type, capacity) (BUFF_DYN_ARR(ptr, capacity/2, type))
-
-#define FREE_VECTOR(vec) ({ \
-    free(vec->arr); \
-    free(vec); \
 })
 
 void* reverse_memcpy(void* dest, void* src, size_t len);

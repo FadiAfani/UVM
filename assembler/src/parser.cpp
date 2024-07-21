@@ -184,6 +184,10 @@ Instruction Parser::parse_inst() {
         case OP_RET:
         case OP_HALT:
             break;
+
+        default:
+            cout << "parser: unrecognized opcode" << endl;
+            exit(EXIT_FAILURE);
     }
 
     return inst;

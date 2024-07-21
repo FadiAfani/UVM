@@ -105,6 +105,10 @@ uint32_t Compiler::compile_inst(Instruction inst) {
         case OP_HALT:
             cinst = opcode << 24;
             break;
+
+        default:
+            cout << "compiler: unrecognized opcode" << endl;
+            exit(EXIT_FAILURE);
     }
 
     return cinst;

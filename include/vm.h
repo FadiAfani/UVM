@@ -8,7 +8,7 @@
 #define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ])
 #define READ_16(vm) (READ_INST(vm) | READ_INST(vm) << 8)
 #define READ_24(vm) (READ_INST(vm) | READ_INST(vm) << 8 | READ_INST(vm) << 16)
-#define STACK_PUSH(vm, value) ( vm->memory[ --vm->regs[RSP].as_u32 ] = value )
+#define STACK_PUSH(vm, value) ( vm->memory[ --vm->regs[R7].as_u32 ] = value )
 
 #define OPCODE_MASK 0xFF000000
 #define RD_MASK 0xF80000
@@ -16,11 +16,15 @@
 #define RB_MASK 0x3E00
 #define IMM_MASK 0x3FFF
 
+#define GET_OPCODE(inst) ( (inst & OPCODE_MASK) >> 24)
 #define GET_RD(inst) ( (RD_MASK & inst) >> 19 )
 #define GET_RA(inst) ( (RA_MASK & inst) >> 14 )
 #define GET_RB(inst) ( (RB_MASK & inst) >> 9 )
-#define GET_IMM14(inst) ( ((1 << 14) - 1) & inst )
-#define GET_IMM24(inst) ( ((1 << 24) - 1) & inst )
+
+#define GET_IMM(inst, bits) ( ((1 << bits) - 1) & inst )
+#define GET_IMM14(inst) ( GET_IMM(inst, 14) )
+#define GET_IMM19(inst) ( GET_IMM(inst, 19) )
+#define GET_IMM24(inst) ( GET_IMM(inst, 24) )
 
 #define BIN_OP_REG(vm, inst, as_type, op) ({ \
     Reg rd = (RD_MASK & inst) >> 19; \
@@ -97,11 +101,8 @@ typedef union word {
 
 /* R0-R7 general purpose 
  * R8-R15 floating-point 
- * RSP - stack pointer
- * RFP - frame pointer
  * RIP - instruction pointer
  * RFLG - condition result
- * RAX - return value
  * */
 
 typedef enum reg {
@@ -121,15 +122,12 @@ typedef enum reg {
     R13,
     R14,
     R15,
-    RSP,
-    RFP,
     RIP,
     RFLG,
-    RAX,
 }Reg;
 
 struct vm {
-    Word regs[RAX + 1];
+    Word regs[RFLG + 1];
     uint32_t memory[MEM_SIZE];
 };
 

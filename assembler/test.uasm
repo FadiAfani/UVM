@@ -1,25 +1,10 @@
 main:
-    push rfp
-    mov rfp rsp
-    movi r1 20
-    movi r2 5
-    addi r3 rip 5
-    subi rsp rsp 3
-    str r3 [rfp - 1]
-    str r1 [rfp - 2]
-    str r2 [rfp - 3]
-    call foo
-    mov r1 rax
-    addi rsp rsp 3
-    pop rfp
+    movi r1 23
+    movi r2 99
+    add r0 r1 r2
+    add r0 r1 r0
+    add r0 r1 r0
+    add r0 r1 r0
+    add r0 r1 r0
+    add r0 r1 r0
     ret
-
-foo:
-    push rfp
-    mov rfp rsp
-    ldr r1 [rfp + 1]
-    ldr r2 [rfp + 2]
-    add rax r1 r2
-    pop rfp
-    ret
-

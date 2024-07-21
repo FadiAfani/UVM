@@ -2,19 +2,21 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h>
 
 void init_vm(struct vm* vm) {
     memset(vm, 0, sizeof(struct vm));
-    vm->regs[RSP].as_u32 = MEM_SIZE;
-    vm->regs[RFP].as_u32 = MEM_SIZE;
+    vm->regs[R7].as_u32 = MEM_SIZE;
+    vm->regs[R6].as_u32 = MEM_SIZE;
+     
 }
 
 void run(struct vm* vm) {
     for (;;) {
 
         uint32_t inst = READ_INST(vm);
-        uint8_t opcode = (inst & OPCODE_MASK) >> 24;
-        printf("rfp: %d, opcode: %d\n", vm->regs[RFP].as_u32, opcode);
+        uint8_t opcode = GET_OPCODE(inst);
+        //printf("rfp: %d, opcode: %d\n", vm->regs[RIP].as_u32, opcode);
 
         switch(opcode) {
             case OP_ADD:
@@ -123,7 +125,7 @@ void run(struct vm* vm) {
             case OP_POP: 
             {
                 Reg rd = GET_RD(inst);
-                vm->regs[rd].as_u32 = vm->memory[ vm->regs[RSP].as_u32++ ];
+                vm->regs[rd].as_u32 = vm->memory[ vm->regs[R7].as_u32++ ];
                 break;
             }
 
@@ -137,7 +139,7 @@ void run(struct vm* vm) {
             case OP_CALL:
             {
                 uint32_t label = GET_IMM24(inst);
-                //STACK_PUSH(vm, vm->regs[RSP].as_u32);
+                vm->memory[ vm->regs[R6].as_u32 - 1 ] = vm->regs[RIP].as_u32;
                 vm->regs[RIP].as_u32 = label;
                 break;
             }
@@ -204,15 +206,17 @@ void run(struct vm* vm) {
 
 
             case OP_RET:
-                if (vm->regs[RFP].as_u32 < MEM_SIZE) {
-                    vm->regs[RIP].as_u32 = vm->memory[vm->regs[RFP].as_u32 - 1];
+                if (vm->regs[R6].as_u32 < MEM_SIZE) {
+                    vm->regs[RIP].as_u32 = vm->memory[vm->regs[R6].as_u32 - 1];
+                } else {
+                    return;
                 }
-                printf("ret: %d\n", vm->regs[RIP].as_u32);
+                //printf("ret: %d\n", vm->regs[RIP].as_u32);
                 break;
             case OP_HALT: return;
             
             default: 
-                printf("opcode: %d\n", vm->regs[RIP].as_u32);
+                //printf("opcode: %d\n", vm->regs[RIP].as_u32);
                 printf("unrecognized opcode: %d\n", opcode);
                 exit(EXIT_FAILURE);
         }

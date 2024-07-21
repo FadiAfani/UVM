@@ -1,6 +1,9 @@
 #include "../include/vm.h"
+#include "../include/jit.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+#include <assert.h>
 
 int main(int argc, char** argv) {
     if (argc < 1) {
@@ -19,8 +22,16 @@ int main(int argc, char** argv) {
     struct vm vm;
     init_vm(&vm);
     fread(vm.memory, 1, len, file);
-    //vm.memory[0].as_u32 =  OP_ADDI << 24 | R0 << 19 | R1 << 14 | 12;
-    run(&vm);
-    printf("r1: %d\n", vm.regs[R1].as_int);
+
+    Vector* vec = gen_x64(&vm, 0, len/4);
+    printf("size: %ld\n", vec->size);
+    void* mcode = mmap(NULL, vec->size * vec->esize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+    memcpy(mcode, vec->arr, vec->size * vec->esize);
+    int (*func)() = mcode;
+    printf("out: %d\n", func());
+
+
+    //run(&vm);
+    //printf("r1: %d\n", vm.regs[R1].as_int);
     return 0;
 }

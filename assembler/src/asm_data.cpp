@@ -48,8 +48,5 @@ AsmData::AsmData() {
     reg_map["r14"] = R14;
     reg_map["r15"] = R15;
     reg_map["rip"] = RIP;
-    reg_map["rsp"] = RSP;
-    reg_map["rax"] = RAX;
-    reg_map["rfp"] = RFP;
     reg_map["rflg"] = RFLG;
 }
