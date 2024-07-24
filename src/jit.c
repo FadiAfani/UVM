@@ -89,6 +89,9 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x89,
                     0x03 << 6 | x64_reg[GET_RA(inst)] << 3, // mov rax, ra
                     0x48,
+                    0x33,
+                    0x03 << 6 | 0x02 << 3 | 0x02,
+                    0x48,
                     0xf7,
                     0x03 << 6 | 0x07 << 3 | x64_reg[GET_RB(inst)], // idiv rb
                     0x48,

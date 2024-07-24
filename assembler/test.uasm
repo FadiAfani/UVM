@@ -1,5 +1,4 @@
 main:
     movi r0 23
-    movi r3 0
     div r0 r0 r0
     ret
