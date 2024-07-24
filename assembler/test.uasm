@@ -1,10 +1,5 @@
 main:
-    movi r1 23
-    movi r2 99
-    add r0 r1 r2
-    add r0 r1 r0
-    add r0 r1 r0
-    add r0 r1 r0
-    add r0 r1 r0
-    add r0 r1 r0
+    movi r0 23
+    movi r3 0
+    div r0 r0 r0
     ret

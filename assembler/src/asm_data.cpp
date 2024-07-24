@@ -5,7 +5,7 @@ AsmData::AsmData() {
     opcode_map["add"] = OP_ADD;
     opcode_map["addi"] = OP_ADDI;
     opcode_map["fadd"] = OP_FADD;
-    opcode_map["sub"] = OP_FSUB;
+    opcode_map["sub"] = OP_SUB;
     opcode_map["subi"] = OP_SUBI;
     opcode_map["fsub"] = OP_FSUB;
     opcode_map["mult"] = OP_MULT;
@@ -30,6 +30,7 @@ AsmData::AsmData() {
     opcode_map["str"] = OP_STR;
     opcode_map["push"] = OP_PUSH;
     opcode_map["call"] = OP_CALL;
+    opcode_map["div"] = OP_DIV;
 
     reg_map["r0"] = R0;
     reg_map["r1"] = R1;

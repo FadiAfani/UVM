@@ -13,7 +13,8 @@ typedef struct Vector{
     void* arr;
 }Vector;
 
-void append(Vector* vector, void* src, size_t n, size_t arr_esize);
+void append_arr_to_vector(Vector* vector, void* src, size_t n, size_t src_esize);
+void inline concat_vectors(Vector* va, Vector* vb);
 
 #define INIT_VECTOR_CAP 4
 
@@ -30,12 +31,17 @@ void append(Vector* vector, void* src, size_t n, size_t arr_esize);
     vec.size += nbytes; \
 })
 
-#define APPEND(vec, src, src_esize) (APPEND_MULT(vec, src, 1, src_esize))
+#define APPEND(vec, elem, type) ({ \
+    if (vec.size >= vec.capacity) { \
+        REALLOC_VECTOR(vec); \
+    } \
+    ((type*) vec.arr)[vec.size++] = elem; \
+})
+
 
 #define INSERT_AT(vector, elem, type, idx) ({ \
     if (vector.size >= vector.capacity) { \
-        REALLOCATE(vector.arr, vector.capacity, sizeof(type)); \
-        vector.capacity *= 2; \
+        REALLOC_VECTOR(vector); \
     } \
     if (idx < vector.capacity) { \
         ((type*) vector.arr)[idx] = elem; \
