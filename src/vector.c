@@ -1,5 +1,6 @@
 #include "../lib/vector.h"
 #include "../include/memory.h"
+#include <stdint.h>
 
 void free_vector(Vector* vec) {
     free(vec->arr);
@@ -15,17 +16,17 @@ void append_arr_to_vector(Vector* vec, void* src, size_t n, size_t src_esize) {
         exit(EXIT_FAILURE);
     }
 
-    if (vec->capacity - vec->size < n) {
+    while (vec->capacity - vec->size < n) {
         REALLOC_VECTOR((*vec));
     }
 
-    char* arr = vec->arr;
+    uint8_t* arr = vec->arr;
     memcpy(arr + vec->size, src, n * src_esize);
     vec->size += n;
     
 }
 
-void inline concat_vectors(Vector* va, Vector* vb) {
+void concat_vectors(Vector* va, Vector* vb) {
     if (va != NULL && vb != NULL) {
         append_arr_to_vector(va, vb->arr, vb->size, vb->esize);
     }

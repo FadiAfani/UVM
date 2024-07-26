@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#define SCALE_FACTOR 2
+#define SCALE_FACTOR 1.5
 
 #define CHECK_FAILED_ALLOCATION(ptr) ({\
 		if (!ptr) {\

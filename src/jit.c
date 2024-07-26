@@ -3,6 +3,7 @@
 #include "../include/jit.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 
 unsigned char x64_reg[] = {
@@ -39,6 +40,17 @@ unsigned char x64_reg[] = {
 })
 
 
+/* MODR/M
+ * mod -> 2 bits
+ * reg -> 3 bits
+ * rm  -> 3 bits
+ * */
+#define MOD_BYTE(mod, reg, rm) ( mod << 6 | reg << 3 | rm )
+
+/* REX prefix */
+#define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
+
+
 
 Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
     Vector* tcode;
@@ -56,27 +68,100 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
             {
                 uint32_t imm = GET_IMM19(inst);
                 unsigned char x64_code[] = {
-                    0xb8 + x64_reg[GET_RD(inst)],
+                    REX(1,0,0,0),
+                    0xc7,
+                    MOD_BYTE(0x03, 0, GET_RD(inst)),
                     0,
                     0,
                     0,
                     0
                 };
-
-                memcpy(x64_code + 1, &imm, 4);
+                *(uint32_t*)(x64_code + 3) = imm;
                 append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
                 break;
 
             }
+
+            case OP_ADDI:
+            {
+                uint32_t imm = GET_IMM14(inst);
+                unsigned char mc[] = {
+                    REX(1, 0, 0, 0),
+                    0x81,
+                    MOD_BYTE(0x03, 0, GET_RA(inst)),
+                    0,
+                    0,
+                    0,
+                    0,
+                    REX(1, 0, 0, 0),
+                    0x89,
+                    MOD_BYTE(0x03, GET_RA(inst), GET_RD(inst))
+                };
+                *(uint32_t*)(mc + 3) = imm;
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
+            case OP_SUBI:
+            {
+                uint32_t imm = GET_IMM19(inst);
+                unsigned char mc[] = {
+                    REX(1, 0, 0, 0),
+                    0x81,
+                    MOD_BYTE(0x03, 0x05, GET_RA(inst)),
+                    0,
+                    0,
+                    0,
+                    0,
+                    REX(1,0,0,0),
+                    0x89,
+                    MOD_BYTE(0x03, GET_RA(inst), GET_RD(inst))
+                };
+                *(uint32_t*)(mc + 3) = imm;
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
             case OP_ADD:
-                JIT_BINOP_X64((*tcode), (unsigned char[]) {0x01}, inst);
+            {
+
+                unsigned char x64_code[] = { 
+                    0x48,
+                    0x01,
+                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    0x48, 
+                    0x89, 
+                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                }; 
+                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1); 
                 break;
+            }
             case OP_SUB:
-                JIT_BINOP_X64((*tcode), (unsigned char[]) {0x29}, inst);
+            {
+
+                unsigned char x64_code[] = { 
+                    0x48,
+                    0x29,
+                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    0x48, 
+                    0x89, 
+                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                }; 
+                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
                 break;
+            }
             case OP_MULT:
-                JIT_BINOP_X64((*tcode), ((unsigned char[]) {0x0F, 0xAF}), inst);
+            {
+                unsigned char x64_code[] = { 
+                    0x48,
+                    0x0F,
+                    0xAF,
+                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    0x48, 
+                    0x89, 
+                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                }; 
+                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
                 break;
+            }
             case OP_DIV:
             {
                 /* {div rd ra rb}
@@ -90,7 +175,7 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x03 << 6 | x64_reg[GET_RA(inst)] << 3, // mov rax, ra
                     0x48,
                     0x33,
-                    0x03 << 6 | 0x02 << 3 | 0x02,
+                    0x03 << 6 | 0x02 << 3 | 0x02, // xor rdx, rdx
                     0x48,
                     0xf7,
                     0x03 << 6 | 0x07 << 3 | x64_reg[GET_RB(inst)], // idiv rb
@@ -98,13 +183,13 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x89,
                     0x03 << 6 | x64_reg[GET_RD(inst)] // mov rd, rax
                 };
+
                 append_arr_to_vector(tcode, mc, sizeof(mc), 1);
                 break;
             }
             case OP_RET:
                 append_arr_to_vector(tcode, (unsigned char[]) {0xc3}, 1, 1);
                 break;
-
             case OP_HALT:
                 return tcode;
             default:

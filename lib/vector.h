@@ -14,7 +14,7 @@ typedef struct Vector{
 }Vector;
 
 void append_arr_to_vector(Vector* vector, void* src, size_t n, size_t src_esize);
-void inline concat_vectors(Vector* va, Vector* vb);
+void concat_vectors(Vector* va, Vector* vb);
 
 #define INIT_VECTOR_CAP 4
 

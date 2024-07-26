@@ -1,4 +1,19 @@
 main:
-    movi r0 23
-    div r0 r0 r0
+    addi r0 r0 20
+    addi r0 r0 20
+    addi r0 r0 20
+    addi r0 r0 20
+    addi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
+    subi r0 r0 20
     ret

@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     fread(vm.memory, 1, len, file);
 
     Vector* vec = gen_x64(&vm, 0, len/4);
-    printf("size: %ld\n", vec->size);
+    //printf("size: %ld, cap: %ld\n", vec->size, vec->capacity);
     void* mcode = mmap(NULL, vec->size * vec->esize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
     memcpy(mcode, vec->arr, vec->size * vec->esize);
     int (*func)() = mcode;
