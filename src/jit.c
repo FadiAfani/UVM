@@ -267,17 +267,26 @@ void gen_x64(struct vm* vm, Vector* tcode, size_t addr, size_t len) {
             }
             case OP_STR:
             {
-                /* str rd [ra + disp] */
+                /* { str rd [ra + disp] } 
+                 * mov rbx, vm->memory
+                 * add ra rbx
+                 * mov [ra + disp], rd
+                 * */
                 int32_t disp = GET_IMM14(inst);
-                uint64_t phys_addr = (uint64_t) &vm->memory[GET_RA(inst) + disp];
                 uint8_t mc[] = {
                     REX(1,0,0,0),
+                    0xb8 + 0x01,
+                    0,0,0,0,0,0,0,0,
+                    REX(1,0,0,0),
+                    0x03,
+                    MOD_BYTE(0x03, x64_reg[GET_RA(inst)], 0x01),
+                    REX(1,0,0,0),
                     0x89,
-                    MOD_BYTE(0x0, x64_reg[GET_RD(inst)], 0x5),
-                    0x25,
-                    0,0,0,0,0,0,0,0
+                    MOD_BYTE(0x2, x64_reg[GET_RD(inst)], x64_reg[GET_RA(inst)]), // 4-byte displacement
+                    0,0,0,0
                 };
-                *(uint64_t*) (mc + 4) = phys_addr;
+                *(uint64_t*) (mc + 2) = (uint64_t) vm->memory;
+                *(int32_t*) (mc + 16) = disp;
                 append_arr_to_vector(tcode, mc, sizeof(mc), 1);
                 break;
             }
