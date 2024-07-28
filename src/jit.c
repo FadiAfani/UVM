@@ -6,7 +6,7 @@
 #include <assert.h>
 
 
-unsigned char x64_reg[] = {
+uint8_t x64_reg[] = {
     [R0] = 0x0,
     [R1] = 0x3,
     [R2] = 0x1,
@@ -28,15 +28,15 @@ unsigned char x64_reg[] = {
 */
 
 #define JIT_BINOP_X64(tcode, opcode, inst) ({ \
-    APPEND(tcode, 0x48, unsigned char); \
+    APPEND(tcode, 0x48, uint8_t); \
     append_arr_to_vector(&tcode, opcode, sizeof(opcode), 1); \
-    unsigned char x64_code[] = { \
+    uint8_t mc[] = { \
         0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], \
         0x48, \
         0x89, \
         0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] \
     }; \
-    append_arr_to_vector(&tcode, x64_code, sizeof(x64_code), 1); \
+    append_arr_to_vector(&tcode, mc, sizeof(mc), 1); \
 })
 
 
@@ -50,12 +50,18 @@ unsigned char x64_reg[] = {
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
 
+void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg, Vector* vec) {
+    uint8_t mc[] = {
+        REX(1,0,0,0),
+        0xb8 + cpu_reg,
+        0,0,0,0,0,0,0,0
+    };
+    *(uint64_t*) (mc + 2) = vm->regs[vm_reg].as_u64;
+    append_arr_to_vector(vec, mc, sizeof(mc), 1);
+}
 
 
-Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
-    Vector* tcode;
-    ALLOC_VECTOR(tcode);
-    INIT_VECTOR((*tcode), 1); // vector<char>
+void gen_x64(struct vm* vm, Vector* tcode, size_t addr, size_t len) {
     uint32_t inst;
 
     //TODO: fail when addr/len > MEM_SIZE
@@ -64,20 +70,30 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
         inst = vm->memory[addr + i];
         uint8_t opcode = GET_OPCODE(inst);
         switch(opcode) {
+            case OP_MOV:
+            {
+                uint8_t mc[] = {
+                    REX(1,0,0,0),
+                    0x89,
+                    MOD_BYTE(0x03, x64_reg[GET_RA(inst)], x64_reg[GET_RD(inst)])
+                };
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
             case OP_MOVI:
             {
                 uint32_t imm = GET_IMM19(inst);
-                unsigned char x64_code[] = {
+                uint8_t mc[] = {
                     REX(1,0,0,0),
                     0xc7,
-                    MOD_BYTE(0x03, 0, GET_RD(inst)),
+                    MOD_BYTE(0x03, 0, x64_reg[GET_RD(inst)]),
                     0,
                     0,
                     0,
                     0
                 };
-                *(uint32_t*)(x64_code + 3) = imm;
-                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
+                *(uint32_t*)(mc + 3) = imm;
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
                 break;
 
             }
@@ -85,17 +101,17 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
             case OP_ADDI:
             {
                 uint32_t imm = GET_IMM14(inst);
-                unsigned char mc[] = {
+                uint8_t mc[] = {
                     REX(1, 0, 0, 0),
                     0x81,
-                    MOD_BYTE(0x03, 0, GET_RA(inst)),
+                    MOD_BYTE(0x03, 0, x64_reg[GET_RA(inst)]),
                     0,
                     0,
                     0,
                     0,
                     REX(1, 0, 0, 0),
                     0x89,
-                    MOD_BYTE(0x03, GET_RA(inst), GET_RD(inst))
+                    MOD_BYTE(0x03, x64_reg[GET_RA(inst)], x64_reg[GET_RD(inst)])
                 };
                 *(uint32_t*)(mc + 3) = imm;
                 append_arr_to_vector(tcode, mc, sizeof(mc), 1);
@@ -104,17 +120,17 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
             case OP_SUBI:
             {
                 uint32_t imm = GET_IMM19(inst);
-                unsigned char mc[] = {
+                uint8_t mc[] = {
                     REX(1, 0, 0, 0),
                     0x81,
-                    MOD_BYTE(0x03, 0x05, GET_RA(inst)),
+                    MOD_BYTE(0x03, 0x05, x64_reg[GET_RA(inst)]),
                     0,
                     0,
                     0,
                     0,
                     REX(1,0,0,0),
                     0x89,
-                    MOD_BYTE(0x03, GET_RA(inst), GET_RD(inst))
+                    MOD_BYTE(0x03, x64_reg[GET_RA(inst)], x64_reg[GET_RD(inst)])
                 };
                 *(uint32_t*)(mc + 3) = imm;
                 append_arr_to_vector(tcode, mc, sizeof(mc), 1);
@@ -123,7 +139,7 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
             case OP_ADD:
             {
 
-                unsigned char x64_code[] = { 
+                uint8_t mc[] = { 
                     0x48,
                     0x01,
                     0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
@@ -131,13 +147,13 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x89, 
                     0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
                 }; 
-                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1); 
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1); 
                 break;
             }
             case OP_SUB:
             {
 
-                unsigned char x64_code[] = { 
+                uint8_t mc[] = { 
                     0x48,
                     0x29,
                     0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
@@ -145,12 +161,12 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x89, 
                     0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
                 }; 
-                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
                 break;
             }
             case OP_MULT:
-            {
-                unsigned char x64_code[] = { 
+            {   
+                uint8_t mc[] = { 
                     0x48,
                     0x0F,
                     0xAF,
@@ -159,7 +175,7 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                     0x89, 
                     0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
                 }; 
-                append_arr_to_vector(tcode, x64_code, sizeof(x64_code), 1);
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
                 break;
             }
             case OP_DIV:
@@ -169,7 +185,7 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                  * idiv rb
                  * mov rd, rax
                  * */
-                unsigned char mc[] = {
+                uint8_t mc[] = {
                     0x48,
                     0x89,
                     0x03 << 6 | x64_reg[GET_RA(inst)] << 3, // mov rax, ra
@@ -188,10 +204,84 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
                 break;
             }
             case OP_RET:
-                append_arr_to_vector(tcode, (unsigned char[]) {0xc3}, 1, 1);
+                APPEND((*tcode), 0xc3, uint8_t);
                 break;
             case OP_HALT:
-                return tcode;
+                APPEND((*tcode), 0xf4, uint8_t);
+                break;
+            case OP_PUSH:
+            {
+                uint8_t mc[] = {
+                    0xff,
+                    MOD_BYTE(0x3, 0x6, x64_reg[GET_RD(inst)]),
+                };
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
+            case OP_CALL:
+            {
+                uint8_t mc[] = {
+                    0xff,
+                    MOD_BYTE(0x0, 0x2, x64_reg[GET_RD(inst)]),
+                };
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
+            case OP_CMP:
+            {
+                uint8_t mc[] = {
+                    REX(1, 0, 0, 0),
+                    0x3b,
+                    MOD_BYTE(0x3, x64_reg[GET_RD(inst)], x64_reg[GET_RA(inst)])
+                };
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+
+            }
+
+            case OP_LDR:
+            {
+                /* { ldr rd [ra + disp] }
+                 * mov rd, vm->memory
+                 * add ra, rd
+                 * mov rd, [ra + disp]
+                 * */
+                int32_t disp = GET_IMM14(inst);
+                uint8_t mc[] = {
+                    REX(1,0,0,0),
+                    0xb8 + x64_reg[GET_RD(inst)],
+                    0,0,0,0,0,0,0,0,
+                    REX(1,0,0,0),
+                    0x03,
+                    MOD_BYTE(0x03, x64_reg[GET_RA(inst)], x64_reg[GET_RD(inst)]),
+                    REX(1,0,0,0),
+                    0x8b,
+                    MOD_BYTE(0x2, x64_reg[GET_RD(inst)], x64_reg[GET_RA(inst)]), // 4-byte displacement
+                    0,0,0,0
+                };
+                *(uint64_t*) (mc + 2) = (uint64_t) vm->memory;
+                *(int32_t*) (mc + 16) = disp;
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+
+            }
+            case OP_STR:
+            {
+                /* str rd [ra + disp] */
+                int32_t disp = GET_IMM14(inst);
+                uint64_t phys_addr = (uint64_t) &vm->memory[GET_RA(inst) + disp];
+                uint8_t mc[] = {
+                    REX(1,0,0,0),
+                    0x89,
+                    MOD_BYTE(0x0, x64_reg[GET_RD(inst)], 0x5),
+                    0x25,
+                    0,0,0,0,0,0,0,0
+                };
+                *(uint64_t*) (mc + 4) = phys_addr;
+                append_arr_to_vector(tcode, mc, sizeof(mc), 1);
+                break;
+            }
+
             default:
                 fprintf(stderr, "Not Implemented\n");
                 exit(EXIT_FAILURE);
@@ -199,5 +289,4 @@ Vector* gen_x64(struct vm* vm, size_t addr, size_t len) {
         }
     }
 
-    return tcode;
 }

@@ -1,19 +1,4 @@
 main:
-    addi r0 r0 20
-    addi r0 r0 20
-    addi r0 r0 20
-    addi r0 r0 20
-    addi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
-    subi r0 r0 20
+    movi r1 10
+    ldr r0 [r1 + 0]
     ret

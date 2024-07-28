@@ -5,9 +5,13 @@
 #include <malloc.h>
 
 void init_vm(struct vm* vm) {
-    memset(vm, 0, sizeof(struct vm));
-    vm->regs[R7].as_u32 = MEM_SIZE;
-    vm->regs[R6].as_u32 = MEM_SIZE;
+
+    if (vm != NULL) {
+        memset(vm, 0, sizeof(struct vm));
+        vm->regs[R7].as_u32 = MEM_SIZE;
+        vm->regs[R6].as_u32 = MEM_SIZE;
+    }
+
      
 }
 

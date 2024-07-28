@@ -2,6 +2,7 @@
 #define VM_H
 
 #include <stdint.h>
+#include "../lib/hash_table.h"
 
 #define MEM_SIZE (1 << 18)
 #define STACK_SIZE (1 << 10)
@@ -94,7 +95,7 @@ typedef union word {
     uint16_t as_u16;
     uint32_t as_u32;
     uint64_t as_u64;
-    int as_int;
+    int32_t as_int;
     float as_float;
     double as_double;
 }Word;
