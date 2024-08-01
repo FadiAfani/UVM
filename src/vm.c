@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <sys/mman.h>
 
 void init_vm(struct vm* vm) {
 
@@ -10,10 +11,45 @@ void init_vm(struct vm* vm) {
         memset(vm, 0, sizeof(struct vm));
         vm->regs[R7].as_u32 = MEM_SIZE;
         vm->regs[R6].as_u32 = MEM_SIZE;
+        vm->units = NULL;
+        vm->mmem = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+        vm->mmem_cap = 4096;
     }
 
      
 }
+
+void insert_unit_front(struct vm* vm, struct mc_unit* unit) {
+    if (vm == NULL || unit == NULL)
+        return;
+    struct mc_unit* prevh = vm->units;
+    vm->units = unit;
+    unit->next = prevh;
+}
+
+struct mc_unit* get_unit_from_vraddr(struct vm* vm, size_t addr) {
+    if (vm == NULL || addr > MEM_SIZE)
+        return NULL;
+    struct mc_unit* cur = vm->units;
+    while(cur) {
+        if (addr > cur->vraddr && addr <= cur->len - cur->vraddr)
+            return cur;
+        cur = cur->next;
+    }
+    return NULL;
+}
+
+int append_code(struct vm* vm, uint8_t* code, size_t len) {
+    if (vm == NULL)
+        return -1;
+    if (code != NULL) {
+        memcpy(vm->mmem + vm->mmem_size, code, len);
+        vm->mmem_size += len;
+    }
+
+    return 0;
+}
+
 
 void run(struct vm* vm) {
     for (;;) {

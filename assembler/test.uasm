@@ -1,4 +1,3 @@
 main:
-    movi r1 10
-    ldr r0 [r1 + 0]
+    movi r0 10
     ret

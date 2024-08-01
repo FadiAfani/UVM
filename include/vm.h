@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "../lib/hash_table.h"
+#include "../lib/vector.h"
 
 #define MEM_SIZE (1 << 18)
 #define STACK_SIZE (1 << 10)
@@ -41,6 +42,23 @@
     vm->regs[rd].as_type = vm->regs[ra].as_type op imm; \
 })
 
+
+#define ALLOC_UNIT(unit) (ALLOCATE(unit, sizeof(struct mc_unit), 1))
+#define INIT_UNIT(unit) ({ \
+    unit.next = NULL; \
+    unit.vraddr = 0; \
+    unit.len = 0; \
+})
+
+
+/* mc: vector<uint8_t> */
+struct mc_unit {
+    size_t mmem_disp;
+    size_t vraddr;
+    size_t len;
+    int heat; // yet to be defined
+    struct mc_unit* next;
+};
 
 typedef enum interupt {
     INTERUPT_STACK_OVERFLOW,
@@ -130,9 +148,17 @@ typedef enum reg {
 struct vm {
     Word regs[RFLG + 1];
     uint32_t memory[MEM_SIZE];
+    uint8_t* mmem; 
+    size_t mmem_size;
+    size_t mmem_cap;
+    struct mc_unit* units;
 };
+
 
 void init_vm(struct vm* vm);
 void run(struct vm* vm);
+void insert_unit_front(struct vm* vm, struct mc_unit* unit);
+struct mc_unit* get_unit_from_vraddr(struct vm* vm, size_t addr);
+int append_code(struct vm* vm, uint8_t* code, size_t len);
 
 #endif
