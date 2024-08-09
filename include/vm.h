@@ -47,15 +47,18 @@
 #define INIT_UNIT(unit) ({ \
     unit.next = NULL; \
     unit.vraddr = 0; \
-    unit.len = 0; \
+    unit.vrlen = 0; \
+    unit.mmem_disp = 0; \
+    unit.mmem_len = 0; \
 })
 
 
 /* mc: vector<uint8_t> */
 struct mc_unit {
     size_t mmem_disp;
+    size_t mmem_len;
     size_t vraddr;
-    size_t len;
+    size_t vrlen;
     int heat; // yet to be defined
     struct mc_unit* next;
 };

@@ -1,3 +1,9 @@
 main:
-    movi r0 10
+    movi r0 30
+    movi r1 10
+    cmp r0 r1
+    jb label
+    ret
+label:
+    movi r0 20
     ret

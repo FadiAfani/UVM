@@ -32,7 +32,7 @@ struct mc_unit* get_unit_from_vraddr(struct vm* vm, size_t addr) {
         return NULL;
     struct mc_unit* cur = vm->units;
     while(cur) {
-        if (addr > cur->vraddr && addr <= cur->len - cur->vraddr)
+        if (addr > cur->vraddr && addr <= cur->vrlen - cur->vraddr)
             return cur;
         cur = cur->next;
     }

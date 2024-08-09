@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#define UNMAPPED vm->mmem_cap
 
 uint8_t x64_reg[] = {
     [R0] = 0x0,
@@ -29,6 +30,20 @@ uint8_t x64_reg[] = {
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
 
+void dump_output_into_file(const char *fn, uint8_t *buff, size_t len) {
+    FILE* fd;
+    if (fn == NULL)
+        fd = fopen("dump", "wb");
+    else 
+        fd = fopen(fn, "wb");
+
+    if (buff != NULL) 
+        fwrite(buff, 1, len, fd);
+    
+    fclose(fd);
+
+}
+
 void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg) {
     uint8_t mc[] = {
         REX(1,0,0,0),
@@ -42,16 +57,24 @@ void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg) {
 
 void gen_x64(struct vm* vm, size_t addr, size_t len) {
     uint32_t inst;
-    struct mc_unit* unit;
-    ALLOC_UNIT(unit);
-    INIT_UNIT((*unit));
-    size_t disp = vm->mmem_size;
+    HashTable jmp_pts;
+    Vector unmapped_labels;
+    INIT_VECTOR(unmapped_labels, sizeof(uint32_t));
+    init_hash_table(&jmp_pts);
 
     //TODO: fail when addr/len > MEM_SIZE
 
     for (size_t i = 0; i < len; i++) {
         inst = vm->memory[addr + i];
         uint8_t opcode = GET_OPCODE(inst);
+
+        struct jmp_data* jd = lookup(&jmp_pts, (uint32_t*) &i, 4); 
+        if (jd != NULL && jd->ismapped) {
+            jd->disp = vm->mmem_size;
+            *(int32_t*) (vm->mmem + jd->instpos + 2) = (jd->disp - jd->instpos) / 8 + 1;
+            jd->ismapped = 1;
+        }
+
         switch(opcode) {
             case OP_MOV:
             {
@@ -286,15 +309,27 @@ void gen_x64(struct vm* vm, size_t addr, size_t len) {
                  * jb <label>
                  * */
                 uint32_t label = GET_IMM24(inst);
+                struct jmp_data* data = lookup(&jmp_pts, &label, 4);
 
-                
                 uint8_t mc[] = {
                     0x0f,
                     0x87,
                     0,0,0,0
                 };
 
-                *(uint32_t*) (mc + 2) = (uint64_t) (vm->mmem + label);
+
+                if (data == NULL) {
+                    struct jmp_data* jd;
+                    ALLOC_JMP_DATA(jd);
+                    jd->ismapped = -1;
+                    jd->instpos = vm->mmem_size;
+                    insert(&jmp_pts, &label, jd, 4);
+                } else if (data->ismapped){
+                    *(int32_t*) (mc + 2) = (int32_t) (vm->mmem_size - data->disp);
+                }
+
+                // overflow ?
+                append_code(vm, mc, sizeof(mc));
                 break;
             }
             case OP_JBE:
@@ -317,6 +352,5 @@ void gen_x64(struct vm* vm, size_t addr, size_t len) {
         }
     }
 
-    insert_unit_front(vm, unit);
 
 }
