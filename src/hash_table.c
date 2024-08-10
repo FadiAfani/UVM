@@ -91,3 +91,15 @@ void* lookup(HashTable* ht, void* key, int size) {
     }
     return NULL;
 }
+
+static inline void free_entry(Entry* e) {
+    free(e->value);
+}
+
+void free_hash_table(HashTable* ht) {
+    for (size_t i = 0; i < ht->capacity; i++) {
+        Entry* e = ht->arr[i];
+        free_entry(e);
+        free(e);
+    }
+}

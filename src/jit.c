@@ -30,6 +30,27 @@ uint8_t x64_reg[] = {
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
 
+#define COND_JMP(opcode) ({ \
+    uint32_t label = GET_IMM24(inst); \
+    struct jmp_data* data = lookup(&jmp_pts, &label, 4); \
+    uint8_t mc[] = { \
+        0x0f, \
+        opcode, \
+        0,0,0,0 \
+    }; \
+    if (data == NULL) { \
+        struct jmp_data* jd; \
+        ALLOC_JMP_DATA(jd); \
+        jd->ismapped = -1; \
+        jd->instpos = vm->mmem_size; \
+        insert(&jmp_pts, &label, jd, 4); \
+    } else if (data->ismapped) { \
+        *(int32_t*) (mc + 2) = (int32_t) (vm->mmem_size - data->disp); \
+    } \
+    append_code(vm, mc, sizeof(mc)); \
+    } \
+)
+
 void dump_output_into_file(const char *fn, uint8_t *buff, size_t len) {
     FILE* fd;
     if (fn == NULL)
@@ -58,8 +79,6 @@ void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg) {
 void gen_x64(struct vm* vm, size_t addr, size_t len) {
     uint32_t inst;
     HashTable jmp_pts;
-    Vector unmapped_labels;
-    INIT_VECTOR(unmapped_labels, sizeof(uint32_t));
     init_hash_table(&jmp_pts);
 
     //TODO: fail when addr/len > MEM_SIZE
@@ -71,7 +90,8 @@ void gen_x64(struct vm* vm, size_t addr, size_t len) {
         struct jmp_data* jd = lookup(&jmp_pts, (uint32_t*) &i, 4); 
         if (jd != NULL && jd->ismapped) {
             jd->disp = vm->mmem_size;
-            *(int32_t*) (vm->mmem + jd->instpos + 2) = (jd->disp - jd->instpos) / 8 + 1;
+            *(int32_t*) (vm->mmem + jd->instpos + 2) = (int32_t) (jd->disp - (jd->instpos + 6));
+            printf("%d\n", *(int32_t*) (vm->mmem + jd->instpos + 2));
             jd->ismapped = 1;
         }
 
@@ -298,49 +318,22 @@ void gen_x64(struct vm* vm, size_t addr, size_t len) {
                 break;
             }
             case OP_JB:
-            {
-                /* { jb label }
-                 * label:
-                 *      movi r1 0
-                 *      cmp r1 r0
-                 *      jb label
-                 * mov rbx, 0
-                 * cmp rbx, rax
-                 * jb <label>
-                 * */
-                uint32_t label = GET_IMM24(inst);
-                struct jmp_data* data = lookup(&jmp_pts, &label, 4);
-
-                uint8_t mc[] = {
-                    0x0f,
-                    0x87,
-                    0,0,0,0
-                };
-
-
-                if (data == NULL) {
-                    struct jmp_data* jd;
-                    ALLOC_JMP_DATA(jd);
-                    jd->ismapped = -1;
-                    jd->instpos = vm->mmem_size;
-                    insert(&jmp_pts, &label, jd, 4);
-                } else if (data->ismapped){
-                    *(int32_t*) (mc + 2) = (int32_t) (vm->mmem_size - data->disp);
-                }
-
-                // overflow ?
-                append_code(vm, mc, sizeof(mc));
+                COND_JMP(0x87);
                 break;
-            }
             case OP_JBE:
+                COND_JMP(0x83);
                 break;
             case OP_JL:
+                COND_JMP(0x82);
                 break;
             case OP_JLE:
+                COND_JMP(0x86);
                 break;
             case OP_JE:
+                COND_JMP(0x84);
                 break;
             case OP_JNE:
+                COND_JMP(0x85);
                 break;
             case OP_JMP:
                 break;
@@ -351,6 +344,5 @@ void gen_x64(struct vm* vm, size_t addr, size_t len) {
 
         }
     }
-
-
+    //free_hash_table(&jmp_pts);
 }

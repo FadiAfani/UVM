@@ -1,9 +1,11 @@
 main:
     movi r0 30
-    movi r1 10
+    movi r1 30
     cmp r0 r1
-    jb label
+    je label
     ret
+    halt
+
 label:
-    movi r0 20
+    add r0 r0 r1
     ret
