@@ -23,13 +23,10 @@ int main(int argc, char** argv) {
     init_vm(&vm);
     fread(vm.memory, 1, len, file);
 
-    gen_x64(&vm, 0, len/4);
+    //gen_x64(&vm, 0, len/4);
     dump_output_into_file(NULL, vm.mmem, vm.mmem_size);
-    //printf("size: %ld, cap: %ld\n", vec.size, vec.capacity);
-    int (*func)() = (void*) vm.mmem;
-    printf("out: %d\n", func());
-
-    //run(&vm);
-    //printf("r1: %d\n", vm.regs[R1].as_int);
+    //int (*func)() = (void*) vm.mmem;
+    //printf("out: %d\n", func());
+    run(&vm);
     return 0;
 }

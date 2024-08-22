@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include <sys/mman.h>
 
 void init_vm(struct vm* vm) {
@@ -11,257 +10,304 @@ void init_vm(struct vm* vm) {
         memset(vm, 0, sizeof(struct vm));
         vm->regs[R7].as_u32 = MEM_SIZE;
         vm->regs[R6].as_u32 = MEM_SIZE;
-        vm->units = NULL;
         vm->mmem = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
         vm->mmem_cap = 4096;
+        init_hash_table(&vm->loop_headers);
+        vm->tp = NULL;
+        vm->is_tracing = true;
+        vm->native_exec = true;
     }
 
      
 }
 
-void insert_unit_front(struct vm* vm, struct mc_unit* unit) {
-    if (vm == NULL || unit == NULL)
-        return;
-    struct mc_unit* prevh = vm->units;
-    vm->units = unit;
-    unit->next = prevh;
-}
 
-struct mc_unit* get_unit_from_vraddr(struct vm* vm, size_t addr) {
-    if (vm == NULL || addr > MEM_SIZE)
-        return NULL;
-    struct mc_unit* cur = vm->units;
-    while(cur) {
-        if (addr > cur->vraddr && addr <= cur->vrlen - cur->vraddr)
-            return cur;
-        cur = cur->next;
-    }
-    return NULL;
-}
+static inline int interpret(struct vm* vm, uint32_t inst) {
+    uint8_t opcode = GET_OPCODE(inst);
 
-int append_code(struct vm* vm, uint8_t* code, size_t len) {
-    if (vm == NULL)
-        return -1;
-    if (code != NULL) {
-        memcpy(vm->mmem + vm->mmem_size, code, len);
-        vm->mmem_size += len;
-    }
+    switch(opcode) {
+        case OP_ADD:
+            BIN_OP_REG(vm, inst, as_int, +);
+            break;
 
-    return 0;
-}
+        case OP_ADDI:
+            BIN_OP_IMM(vm, inst, as_int, +);
+            break;
 
+        case OP_FADD:
+            BIN_OP_REG(vm, inst, as_double, +);
+            break;
 
-void run(struct vm* vm) {
-    for (;;) {
+        case OP_SUB:
+            BIN_OP_REG(vm, inst, as_int, -);
+            break;
 
-        uint32_t inst = READ_INST(vm);
-        uint8_t opcode = GET_OPCODE(inst);
-        //printf("rfp: %d, opcode: %d\n", vm->regs[RIP].as_u32, opcode);
+        case OP_SUBI:
+            BIN_OP_IMM(vm, inst, as_int, -);
+            break;
 
-        switch(opcode) {
-            case OP_ADD:
-                BIN_OP_REG(vm, inst, as_int, +);
-                break;
+        case OP_FSUB:
+            BIN_OP_REG(vm, inst, as_double, -);
+            break;
 
-            case OP_ADDI:
-                BIN_OP_IMM(vm, inst, as_int, +);
-                break;
+        case OP_MULT:
+            BIN_OP_REG(vm, inst, as_int, *);
+            break;
 
-            case OP_FADD:
-                BIN_OP_REG(vm, inst, as_double, +);
-                break;
+        case OP_FMULT:
+            BIN_OP_REG(vm, inst, as_double, *);
+            break;
 
-            case OP_SUB:
-                BIN_OP_REG(vm, inst, as_int, -);
-                break;
+        case OP_DIV:
+            BIN_OP_REG(vm, inst, as_int, /);
+            break;
 
-            case OP_SUBI:
-                BIN_OP_IMM(vm, inst, as_int, -);
-                break;
-
-            case OP_FSUB:
-                BIN_OP_REG(vm, inst, as_double, -);
-                break;
-
-            case OP_MULT:
-                BIN_OP_REG(vm, inst, as_int, *);
-                break;
-
-            case OP_FMULT:
-                BIN_OP_REG(vm, inst, as_double, *);
-                break;
-
-            case OP_DIV:
-                BIN_OP_REG(vm, inst, as_int, /);
-                break;
-
-            case OP_FDIV:
-                BIN_OP_REG(vm, inst, as_double, /);
-                break;
-            case OP_MOV:
-            {
-                Reg rd = GET_RD(inst);
-                Reg ra = GET_RA(inst);
-                vm->regs[rd] = vm->regs[ra];
-                break;
-            }
-            case OP_CMP:
-            {
-                Reg rd = GET_RD(inst);
-                Reg ra = GET_RA(inst);
-                if (vm->regs[rd].as_int > vm->regs[ra].as_int) 
-                    vm->regs[RFLG].as_int = 1;
-                else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
-                    vm->regs[RFLG].as_int = -1;
-                else 
-                    vm->regs[RFLG].as_int = 0;
-                break;
-            }
-
-            case OP_FCMP:
-            {
-                Reg rd = GET_RD(inst);
-                Reg ra = GET_RA(inst);
-                if (vm->regs[rd].as_double > vm->regs[ra].as_double) 
-                    vm->regs[RFLG].as_int = 1;
-                else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
-                    vm->regs[RFLG].as_int = -1;
-                else 
-                    vm->regs[RFLG].as_int = 0;
-                break;
-            }
-
-            case OP_JMP:
-            {
-                uint32_t label = GET_IMM24(inst);
-                vm->regs[RIP].as_u32 = label;
-                break;
-            }
-            case OP_JE:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int == 0)
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-
-            case OP_JL:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int < 0)
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-
-
-            case OP_JB:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int > 0)
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-
-            case OP_POP: 
-            {
-                Reg rd = GET_RD(inst);
-                vm->regs[rd].as_u32 = vm->memory[ vm->regs[R7].as_u32++ ];
-                break;
-            }
-
-            case OP_PUSH:
-            {
-                Reg rd = GET_RD(inst);
-                STACK_PUSH(vm, vm->regs[rd].as_u32);
-                break;
-            }
-
-            case OP_CALL:
-            {
-                uint32_t label = GET_IMM24(inst);
-                vm->memory[ vm->regs[R6].as_u32 - 1 ] = vm->regs[RIP].as_u32;
-                vm->regs[RIP].as_u32 = label;
-                break;
-            }
-            case OP_JBE:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int >= 0 )
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-
-            case OP_JLE:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int <= 0 )
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-
-            case OP_JNE:
-            {
-                uint32_t label = GET_IMM24(inst);
-                if (vm->regs[RFLG].as_int != 0 )
-                    vm->regs[RIP].as_u32 = label;
-                break;
-            }
-            case OP_MOVI:
-            {
-                Reg rd = GET_RD(inst);
-                uint16_t imm = GET_IMM14(inst);
-                vm->regs[rd].as_u32 = imm;
-                break;
-
-            }
-            case OP_LDR:
-            {
-                Reg rd = GET_RD(inst);
-                Reg rs = GET_RA(inst);
-                uint16_t imm = GET_IMM14(inst);
-                int msb = (imm & ( 1 << 13 )) >> 13;
-                int16_t shift = (( 1 << 13 ) - 1) & imm;
-                if (msb) {
-                    shift = -shift;
-                }
-                vm->regs[rd].as_u32 = vm->memory[vm->regs[rs].as_u32 + shift];
-                break;
-
-            }
-            
-            case OP_STR:
-            {
-                Reg rd = GET_RD(inst);
-                Reg rs = GET_RA(inst);
-                uint16_t imm = GET_IMM14(inst);
-                int msb = (imm & ( 1 << 13 )) >> 13;
-                int16_t shift = (( 1 << 13 ) - 1) & imm;
-                if (msb) {
-                    shift = -shift;
-                }
-                //printf("mem: %d, %d\n", vm->regs[rs].as_u32, shift);
-                vm->memory[vm->regs[rs].as_u32 + shift] = vm->regs[rd].as_u32;
-                break;
-            }
-
-
-            case OP_RET:
-                if (vm->regs[R6].as_u32 < MEM_SIZE) {
-                    vm->regs[RIP].as_u32 = vm->memory[vm->regs[R6].as_u32 - 1];
-                } else {
-                    return;
-                }
-                //printf("ret: %d\n", vm->regs[RIP].as_u32);
-                break;
-            case OP_HALT: return;
-            
-            default: 
-                //printf("opcode: %d\n", vm->regs[RIP].as_u32);
-                printf("unrecognized opcode: %d\n", opcode);
-                exit(EXIT_FAILURE);
+        case OP_FDIV:
+            BIN_OP_REG(vm, inst, as_double, /);
+            break;
+        case OP_MOV:
+        {
+            Reg rd = GET_RD(inst);
+            Reg ra = GET_RA(inst);
+            vm->regs[rd] = vm->regs[ra];
+            break;
+        }
+        case OP_CMP:
+        {
+            Reg rd = GET_RD(inst);
+            Reg ra = GET_RA(inst);
+            if (vm->regs[rd].as_int > vm->regs[ra].as_int) 
+                vm->regs[RFLG].as_int = 1;
+            else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
+                vm->regs[RFLG].as_int = -1;
+            else 
+                vm->regs[RFLG].as_int = 0;
+            break;
         }
 
+        case OP_FCMP:
+        {
+            Reg rd = GET_RD(inst);
+            Reg ra = GET_RA(inst);
+            if (vm->regs[rd].as_double > vm->regs[ra].as_double) 
+                vm->regs[RFLG].as_int = 1;
+            else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
+                vm->regs[RFLG].as_int = -1;
+            else 
+                vm->regs[RFLG].as_int = 0;
+            break;
+        }
+
+        case OP_JMP:
+        {
+            uint32_t label = GET_IMM24(inst);
+            vm->regs[RIP].as_u32 = label;
+            break;
+        }
+        case OP_JE:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int == 0)
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+
+        case OP_JL:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int < 0)
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+
+
+        case OP_JB:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int > 0)
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+
+        case OP_POP: 
+        {
+            Reg rd = GET_RD(inst);
+            vm->regs[rd].as_u32 = vm->memory[ vm->regs[R7].as_u32++ ];
+            break;
+        }
+
+        case OP_PUSH:
+        {
+            Reg rd = GET_RD(inst);
+            STACK_PUSH(vm, vm->regs[rd].as_u32);
+            break;
+        }
+
+        case OP_CALL:
+        {
+            uint32_t label = GET_IMM24(inst);
+            vm->memory[ vm->regs[R6].as_u32 - 1 ] = vm->regs[RIP].as_u32;
+            vm->regs[RIP].as_u32 = label;
+            break;
+        }
+        case OP_JBE:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int >= 0 )
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+
+        case OP_JLE:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int <= 0 )
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+
+        case OP_JNE:
+        {
+            uint32_t label = GET_IMM24(inst);
+            if (vm->regs[RFLG].as_int != 0 )
+                vm->regs[RIP].as_u32 = label;
+            break;
+        }
+        case OP_MOVI:
+        {
+            Reg rd = GET_RD(inst);
+            uint16_t imm = GET_IMM14(inst);
+            vm->regs[rd].as_u32 = imm;
+            break;
+
+        }
+        case OP_LDR:
+        {
+            Reg rd = GET_RD(inst);
+            Reg rs = GET_RA(inst);
+            uint16_t imm = GET_IMM14(inst);
+            int msb = (imm & ( 1 << 13 )) >> 13;
+            int16_t shift = (( 1 << 13 ) - 1) & imm;
+            if (msb) {
+                shift = -shift;
+            }
+            vm->regs[rd].as_u32 = vm->memory[vm->regs[rs].as_u32 + shift];
+            break;
+
+        }
+        
+        case OP_STR:
+        {
+            Reg rd = GET_RD(inst);
+            Reg rs = GET_RA(inst);
+            uint16_t imm = GET_IMM14(inst);
+            int msb = (imm & ( 1 << 13 )) >> 13;
+            int16_t shift = (( 1 << 13 ) - 1) & imm;
+            if (msb) {
+                shift = -shift;
+            }
+            vm->memory[vm->regs[rs].as_u32 + shift] = vm->regs[rd].as_u32;
+            break;
+        }
+
+
+        case OP_RET:
+            if (vm->regs[R6].as_u32 < MEM_SIZE) {
+                vm->regs[RIP].as_u32 = vm->memory[vm->regs[R6].as_u32 - 1];
+            } else {
+                return 0;
+            }
+            break;
+        case OP_HALT: return 0;
+        
+        default: 
+            printf("unrecognized opcode: %d\n", opcode);
+            exit(EXIT_FAILURE);
     }
+    return 1;
+}
+
+static inline void profile(struct vm* vm, uint32_t prev_ip) {
+        uint32_t ip = GET_REG_AS(RIP, as_u32);
+        LoopHeader* lh = NULL;
+        if (vm == NULL)
+            return;
+        if (ip < prev_ip) {
+            lh = lookup(&vm->loop_headers, &ip, 4);
+            if (lh != NULL) 
+                lh->heat++;
+            else {
+                ALLOCATE(lh, sizeof(LoopHeader), 1);
+                INIT_TRACE((*lh->trace));
+                lh->heat = 1;
+                insert(&vm->loop_headers, &ip, lh, 4);
+            }
+            vm->tp = lh->trace;
+
+        }
+        if (lh == NULL)
+            vm->is_tracing = false;
+        
+}
+
+static inline void record_inst(struct vm* vm, uint32_t inst) {
+    Trace* trace = vm->tp;
+    if (vm == NULL || trace == NULL || !vm->is_tracing) 
+        return;
+
+    uint32_t jmp_addr = GET_IMM24(inst);
+    uint32_t prev_ip = GET_REG_AS(RIP, as_u32);
+    uint32_t cur_ip;
+    switch(GET_OPCODE(inst)) {
+        case OP_JB:
+        case OP_JE:
+        case OP_JL:
+        case OP_JBE:
+        case OP_JLE:
+        case OP_JNE:
+        case OP_JMP:
+            interpret(vm, inst);
+            break;
+        
+        default:
+            APPEND(trace->bytecode, inst, uint32_t);
+            break;
+    }
+
+    
+}
+
+void run(struct vm* vm) {
+    if (vm == NULL) 
+        return;
+
+    uint32_t ip = 0;
+
+    for (;;) {
+        uint32_t inst = READ_INST(vm);
+
+        profile(vm, ip);
+        record_inst(vm, inst);
+
+        if (vm->native_exec) {
+            int (*fptr)() = (void*) vm->tp->mmem_ptr;
+        } else {
+            int interp_res = interpret(vm, inst);
+            if (!interp_res) return;
+        }
+        ip = GET_REG_AS(RIP, as_u32);
+
+    }
+}
+
+void write_trace(struct vm* vm, Trace* trace) {
+    if (trace == NULL || vm == NULL)
+        return;
+
+    //TODO: mmem is not dynamic !!! 
+    trace->mmem_ptr = vm->mmem + vm->mmem_size;
+    gen_x64(vm, &trace->bytecode);
+
 }
 
 

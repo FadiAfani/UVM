@@ -1,5 +1,3 @@
-#include "../include/vm.h"
-#include "../lib/vector.h"
 #include "../include/jit.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -51,6 +49,18 @@ uint8_t x64_reg[] = {
     } \
 )
 
+
+static int append_code(struct vm* vm, uint8_t* code, size_t len) {
+    if (vm == NULL)
+        return -1;
+    if (code != NULL) {
+        memcpy(vm->mmem + vm->mmem_size, code, len);
+        vm->mmem_size += len;
+    }
+
+    return 0;
+}
+
 void dump_output_into_file(const char *fn, uint8_t *buff, size_t len) {
     FILE* fd;
     if (fn == NULL)
@@ -76,15 +86,15 @@ void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg) {
 }
 
 
-void gen_x64(struct vm* vm, size_t addr, size_t len) {
+void gen_x64(struct vm* vm, Vector* bytecode) {
     uint32_t inst;
     HashTable jmp_pts;
     init_hash_table(&jmp_pts);
 
     //TODO: fail when addr/len > MEM_SIZE
 
-    for (size_t i = 0; i < len; i++) {
-        inst = vm->memory[addr + i];
+    for (size_t i = 0; i < bytecode->size; i++) {
+        inst = INDEX_VECTOR((*bytecode), uint8_t, i);
         uint8_t opcode = GET_OPCODE(inst);
 
         struct jmp_data* jd = lookup(&jmp_pts, (uint32_t*) &i, 4); 

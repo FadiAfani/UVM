@@ -2,10 +2,10 @@
 #define VM_H
 
 #include <stdint.h>
-#include "../lib/hash_table.h"
-#include "../lib/vector.h"
+#include <stdbool.h>
+#include "../include/common.h"
+#include "../include/jit.h"
 
-#define MEM_SIZE (1 << 18)
 #define STACK_SIZE (1 << 10)
 #define READ_INST(vm) (vm->memory[ vm->regs[RIP].as_u32++ ])
 #define READ_16(vm) (READ_INST(vm) | READ_INST(vm) << 8)
@@ -17,6 +17,8 @@
 #define RA_MASK 0x7C000
 #define RB_MASK 0x3E00
 #define IMM_MASK 0x3FFF
+
+#define GET_REG_AS(reg, type) (vm->regs[RIP].type)
 
 #define GET_OPCODE(inst) ( (inst & OPCODE_MASK) >> 24)
 #define GET_RD(inst) ( (RD_MASK & inst) >> 19 )
@@ -42,126 +44,29 @@
     vm->regs[rd].as_type = vm->regs[ra].as_type op imm; \
 })
 
+#define ALLOC_TRACE(ptr) (ALLOCATE(ptr, sizeof(Trace), 1))
+#define INIT_TRACE(trace) ({ \
+    trace.saddr = 0; \
+    trace.heat = 0; \
+    INIT_VECTOR(trace.bytecode, 1); \
+    INIT_VECTOR(trace.sub_paths, sizeof(Trace)); \
+})
 
-#define ALLOC_UNIT(unit) (ALLOCATE(unit, sizeof(struct mc_unit), 1))
-#define INIT_UNIT(unit) ({ \
-    unit.next = NULL; \
-    unit.vraddr = 0; \
-    unit.vrlen = 0; \
-    unit.mmem_disp = 0; \
-    unit.mmem_len = 0; \
+#define INIT_LOOP_HEADER(lh) ({ \
+    lh.heat = 0; \
+    lh.trace = NULL; \
 })
 
 
-/* mc: vector<uint8_t> */
-struct mc_unit {
-    size_t mmem_disp;
-    size_t mmem_len;
-    size_t vraddr;
-    size_t vrlen;
-    int heat; // yet to be defined
-    struct mc_unit* next;
-};
-
-typedef enum interupt {
-    INTERUPT_STACK_OVERFLOW,
-    INTERUPT_STACK_UNDERFLOW,
-    INTERUPT_ILLEGAL_ACCESS
-}Interupt;
-
-enum opcode {
-    OP_ADD,
-    OP_ADDI,
-    OP_FADD,
-    OP_SUB,
-    OP_SUBI,
-    OP_FSUB,
-    OP_MULT,
-    OP_FMULT,
-    OP_DIV,
-    OP_FDIV,
-    OP_MOV,
-    OP_CALL,
-    OP_PUSH,
-    OP_POP,
-    OP_RET,
-    OP_CMP,
-    OP_FCMP,
-    OP_JMP,
-    OP_JE,
-    OP_JL,
-    OP_JB,
-    OP_HALT,
-    OP_JNE,
-    OP_JBE,
-    OP_JLE,
-    OP_MOVI,
-    OP_LDR,
-    OP_STR
-
-};
-
-/* Binary Instruction Encoding (Register)
- *
- * OPCODE 31 - 24
- * RD 23 - 19
- * RA 18 - 14
- * RB 13 - 9
- * 00000000 8 - 0
- *
- * */
-
-typedef union word {
-    uint8_t as_u8;
-    uint16_t as_u16;
-    uint32_t as_u32;
-    uint64_t as_u64;
-    int32_t as_int;
-    float as_float;
-    double as_double;
-}Word;
-
-/* R0-R7 general purpose 
- * R8-R15 floating-point 
- * RIP - instruction pointer
- * RFLG - condition result
- * */
-
-typedef enum reg {
-    R0,
-    R1,
-    R2,
-    R3,
-    R4,
-    R5,
-    R6,
-    R7,
-    R8,
-    R9,
-    R10,
-    R11,
-    R12,
-    R13,
-    R14,
-    R15,
-    RIP,
-    RFLG,
-}Reg;
-
-struct vm {
-    Word regs[RFLG + 1];
-    uint32_t memory[MEM_SIZE];
-    uint8_t* mmem; 
-    size_t mmem_size;
-    size_t mmem_cap;
-    struct mc_unit* units;
-};
+typedef enum interrupt {
+    INTERRUPT_STACK_OVERFLOW,
+    INTERRUPT_STACK_UNDERFLOW,
+    INTERRUPT_ILLEGAL_ACCESS
+}Interrupt;
 
 
+void write_trace(struct vm* vm, Trace* trace);
 void init_vm(struct vm* vm);
 void run(struct vm* vm);
-void insert_unit_front(struct vm* vm, struct mc_unit* unit);
-struct mc_unit* get_unit_from_vraddr(struct vm* vm, size_t addr);
-int append_code(struct vm* vm, uint8_t* code, size_t len);
 
 #endif
