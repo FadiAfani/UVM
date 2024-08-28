@@ -23,31 +23,10 @@ uint8_t x64_reg[] = {
  * reg -> 3 bits
  * rm  -> 3 bits
  * */
-#define MOD_BYTE(mod, reg, rm) ( mod << 6 | reg << 3 | rm )
+#define MOD_BYTE(mod, reg, rm) ( (uint8_t) (mod << 6 | reg << 3 | rm ) )
 
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
-
-#define COND_JMP(opcode) ({ \
-    uint32_t label = GET_IMM24(inst); \
-    struct jmp_data* data = lookup(&jmp_pts, &label, 4); \
-    uint8_t mc[] = { \
-        0x0f, \
-        opcode, \
-        0,0,0,0 \
-    }; \
-    if (data == NULL) { \
-        struct jmp_data* jd; \
-        ALLOC_JMP_DATA(jd); \
-        jd->ismapped = -1; \
-        jd->instpos = vm->mmem_size; \
-        insert(&jmp_pts, &label, jd, 4); \
-    } else if (data->ismapped) { \
-        *(int32_t*) (mc + 2) = (int32_t) (vm->mmem_size - data->disp); \
-    } \
-    append_code(vm, mc, sizeof(mc)); \
-    } \
-)
 
 
 static int append_code(struct vm* vm, uint8_t* code, size_t len) {
@@ -75,14 +54,48 @@ void dump_output_into_file(const char *fn, uint8_t *buff, size_t len) {
 
 }
 
-void load_vm_reg_into_x64(struct vm* vm, uint cpu_reg, Reg vm_reg) {
+
+void transfer_reg_x64(struct vm* vm, unsigned int cpu_reg, Reg vm_reg, bool to_cpu) {
+    uint8_t opcode = 0x89;
+    if (to_cpu) {
+        opcode = 0x8b;
+    }
+
+    /* mov rax, imm64
+     * mov cpu_reg, [rax]
+     * */
     uint8_t mc[] = {
         REX(1,0,0,0),
-        0xb8 + cpu_reg,
-        0,0,0,0,0,0,0,0
+        0xb8,
+        0,0,0,0,0,0,0,0,
+        REX(1,0,0,0),
+        opcode,
+        MOD_BYTE(0, cpu_reg, 0)
     };
-    *(uint64_t*) (mc + 2) = vm->regs[vm_reg].as_u64;
+    *(uint64_t*) (mc + 2) = GET_REG_AS(vm_reg, as_u64);
     append_code(vm, mc, sizeof(mc));
+
+}
+
+void transfer_reg_state(struct vm* vm, ArchType arch, bool to_cpu) {
+    RegTransferFunc tfunc;
+    uint8_t* cpu_regs;
+    int n;
+    switch(arch) {
+        case X86_64:
+            tfunc = transfer_reg_x64;
+            cpu_regs = x64_reg;
+            n = sizeof(x64_reg);
+            break;
+        default:
+            fprintf(stderr, "not a valid register transfer function\n");
+            exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < n; i++) { 
+        tfunc(vm, cpu_regs[i], (Reg) i, to_cpu);
+    }
+
 }
 
 
@@ -92,18 +105,10 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
     init_hash_table(&jmp_pts);
 
     //TODO: fail when addr/len > MEM_SIZE
-
     for (size_t i = 0; i < bytecode->size; i++) {
-        inst = INDEX_VECTOR((*bytecode), uint8_t, i);
+        inst = INDEX_VECTOR((*bytecode), uint32_t, i);
         uint8_t opcode = GET_OPCODE(inst);
 
-        struct jmp_data* jd = lookup(&jmp_pts, (uint32_t*) &i, 4); 
-        if (jd != NULL && jd->ismapped) {
-            jd->disp = vm->mmem_size;
-            *(int32_t*) (vm->mmem + jd->instpos + 2) = (int32_t) (jd->disp - (jd->instpos + 6));
-            printf("%d\n", *(int32_t*) (vm->mmem + jd->instpos + 2));
-            jd->ismapped = 1;
-        }
 
         switch(opcode) {
             case OP_MOV:
@@ -175,14 +180,16 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
             }
             case OP_ADD:
             {
+                uint8_t mod1 = 0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)];
+                uint8_t mod2 = 0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)];
 
                 uint8_t mc[] = { 
                     0x48,
                     0x01,
-                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    mod1,
                     0x48, 
                     0x89, 
-                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                    mod2
                 }; 
                 append_code(vm, mc, sizeof(mc));
                 break;
@@ -190,27 +197,34 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
             case OP_SUB:
             {
 
+                uint8_t mod1 = 0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)];
+                uint8_t mod2 = 0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)];
+
                 uint8_t mc[] = { 
                     0x48,
                     0x29,
-                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    mod1,
                     0x48, 
                     0x89, 
-                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                    mod2
                 }; 
                 append_code(vm, mc, sizeof(mc));
                 break;
             }
             case OP_MULT:
             {   
+
+                uint8_t mod1 = 0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)];
+                uint8_t mod2 = 0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)];
+
                 uint8_t mc[] = { 
                     0x48,
                     0x0F,
                     0xAF,
-                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3 | x64_reg[GET_RB(inst)], 
+                    mod1,
                     0x48, 
                     0x89, 
-                    0x03 << 6 | x64_reg[GET_RB(inst)] << 3 | x64_reg[GET_RD(inst)] 
+                    mod2
                 }; 
                 append_code(vm, mc, sizeof(mc));
                 break;
@@ -222,30 +236,41 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
                  * idiv rb
                  * mov rd, rax
                  * */
+
+                uint8_t mod1 = 0x03 << 6 | x64_reg[GET_RA(inst)] << 3; // mov rax, ra
+                uint8_t mod2 = 0x03 << 6 | 0x07 << 3 | x64_reg[GET_RB(inst)]; // idiv rb
+                uint8_t mod3 = 0x03 << 6 | x64_reg[GET_RD(inst)]; // mov rd, rax
+                                                                  //
                 uint8_t mc[] = {
                     0x48,
                     0x89,
-                    0x03 << 6 | x64_reg[GET_RA(inst)] << 3, // mov rax, ra
+                    mod1,
                     0x48,
                     0x33,
                     0x03 << 6 | 0x02 << 3 | 0x02, // xor rdx, rdx
                     0x48,
                     0xf7,
-                    0x03 << 6 | 0x07 << 3 | x64_reg[GET_RB(inst)], // idiv rb
+                    mod2,
                     0x48,
                     0x89,
-                    0x03 << 6 | x64_reg[GET_RD(inst)] // mov rd, rax
+                    mod3
                 };
 
                 append_code(vm, mc, sizeof(mc));
                 break;
             }
             case OP_RET:
-                append_code(vm, (uint8_t[]){0xc3}, 1);
+            {
+                uint8_t mc[] = {0xc3};
+                append_code(vm, mc, 1);
                 break;
+            }
             case OP_HALT:
-                append_code(vm, (uint8_t[]){0xf4}, 1);
+            {
+                uint8_t mc[] = {0xf4};
+                append_code(vm, mc, 1);
                 break;
+            }
             case OP_PUSH:
             {
                 uint8_t mc[] = {
@@ -283,10 +308,11 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
                  * add ra, rd
                  * mov rd, [ra + disp]
                  * */
+                uint8_t dst = 0xb8 + x64_reg[GET_RD(inst)];
                 int32_t disp = GET_IMM14(inst);
                 uint8_t mc[] = {
                     REX(1,0,0,0),
-                    0xb8 + x64_reg[GET_RD(inst)],
+                    dst,
                     0,0,0,0,0,0,0,0,
                     REX(1,0,0,0),
                     0x03,
@@ -328,22 +354,16 @@ void gen_x64(struct vm* vm, Vector* bytecode) {
                 break;
             }
             case OP_JB:
-                COND_JMP(0x87);
                 break;
             case OP_JBE:
-                COND_JMP(0x83);
                 break;
             case OP_JL:
-                COND_JMP(0x82);
                 break;
             case OP_JLE:
-                COND_JMP(0x86);
                 break;
             case OP_JE:
-                COND_JMP(0x84);
                 break;
             case OP_JNE:
-                COND_JMP(0x85);
                 break;
             case OP_JMP:
                 break;

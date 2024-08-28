@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include "../lib/vector.h"
 #include "../lib/hash_table.h"
+#include <unordered_map>
+
+extern uint8_t x64_reg[];
 
 
 #define MEM_SIZE (1 << 18)
@@ -29,15 +32,14 @@
 #define GET_IMM24(inst) ( GET_IMM(inst, 24) )
 
 
-typedef void (*mcfunc)();
+typedef void (*exec_func)();
 
 typedef struct trace {
     uint32_t saddr;
     int heat;
     uint8_t* mmem_ptr;
-    mcfunc exec_func;
+    exec_func func;
     Vector bytecode;
-    Vector sub_paths;
 }Trace;
 
 
@@ -132,12 +134,14 @@ struct vm {
     size_t mmem_size;
     size_t mmem_cap;
     /* maps instruction pointers to counters */
-    HashTable loop_headers;
+    std::unordered_map<int, LoopHeader> loop_headers;
     Trace* tp;
     bool is_tracing;
     bool native_exec;
 };
 
 
+void free_trace(Trace* trace);
+typedef void (*RegTransferFunc)(struct vm*, unsigned int, Reg, bool);
 
 #endif

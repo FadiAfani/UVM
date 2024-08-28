@@ -4,24 +4,25 @@ BIN = bin
 TESTS = tests
 TEST_BINS = $(TESTS)/bin
 CFLAGS = -Wall -Wextra -g
+CC = g++
 
-OBJS = $(SRCS:$(SRC)/%.c=$(BUILD)/%.o)
-SRCS = $(wildcard $(SRC)/*.c)
+OBJS = $(SRCS:$(SRC)/%.cpp=$(BUILD)/%.o)
+SRCS = $(wildcard $(SRC)/*.cpp)
 TEST_SRCS = $(wildcard $(TESTS)/*.c)
 
-$(BUILD)/%.o: $(SRC)/%.c
-	gcc $(CFLAGS) -c $< -o $@
+$(BUILD)/%.o: $(SRC)/%.cpp
+	$(CC) $(CFLAGS) -c $< -o $@
 
 all: $(OBJS)
-	gcc $(CFLAGS) -o $(BIN)/uvm $^
+	$(CC) $(CFLAGS) -o $(BIN)/uvm $^
 
 test_vm: $(TESTS)/test_vm.c $(BUILD)/vm.o
-	gcc -o $(TEST_BINS)/$@ $^ -lcriterion
+	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
 	./$(TEST_BINS)/$@
 
 
 test_jit: $(TESTS)/test_jit.c $(BUILD)/vm.o $(BUILD)/jit.o $(BUILD)/vector.o
-	gcc -o $(TEST_BINS)/$@ $^ -lcriterion
+	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
 	./$(TEST_BINS)/$@
 
 

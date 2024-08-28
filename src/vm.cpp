@@ -10,9 +10,8 @@ void init_vm(struct vm* vm) {
         memset(vm, 0, sizeof(struct vm));
         vm->regs[R7].as_u32 = MEM_SIZE;
         vm->regs[R6].as_u32 = MEM_SIZE;
-        vm->mmem = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0);
+        vm->mmem = reinterpret_cast<uint8_t*>(mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, -1, 0));
         vm->mmem_cap = 4096;
-        init_hash_table(&vm->loop_headers);
         vm->tp = NULL;
         vm->is_tracing = true;
         vm->native_exec = true;
@@ -67,15 +66,15 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
             break;
         case OP_MOV:
         {
-            Reg rd = GET_RD(inst);
-            Reg ra = GET_RA(inst);
+            unsigned int rd = GET_RD(inst);
+            unsigned int ra = GET_RA(inst);
             vm->regs[rd] = vm->regs[ra];
             break;
         }
         case OP_CMP:
         {
-            Reg rd = GET_RD(inst);
-            Reg ra = GET_RA(inst);
+            unsigned int rd = GET_RD(inst);
+            unsigned int ra = GET_RA(inst);
             if (vm->regs[rd].as_int > vm->regs[ra].as_int) 
                 vm->regs[RFLG].as_int = 1;
             else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
@@ -87,8 +86,8 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
 
         case OP_FCMP:
         {
-            Reg rd = GET_RD(inst);
-            Reg ra = GET_RA(inst);
+            unsigned int rd = GET_RD(inst);
+            unsigned int ra = GET_RA(inst);
             if (vm->regs[rd].as_double > vm->regs[ra].as_double) 
                 vm->regs[RFLG].as_int = 1;
             else if (vm->regs[rd].as_int < vm->regs[ra].as_int)
@@ -131,14 +130,14 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
 
         case OP_POP: 
         {
-            Reg rd = GET_RD(inst);
+            unsigned int rd = GET_RD(inst);
             vm->regs[rd].as_u32 = vm->memory[ vm->regs[R7].as_u32++ ];
             break;
         }
 
         case OP_PUSH:
         {
-            Reg rd = GET_RD(inst);
+            unsigned int rd = GET_RD(inst);
             STACK_PUSH(vm, vm->regs[rd].as_u32);
             break;
         }
@@ -175,7 +174,7 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
         }
         case OP_MOVI:
         {
-            Reg rd = GET_RD(inst);
+            unsigned int rd = GET_RD(inst);
             uint16_t imm = GET_IMM14(inst);
             vm->regs[rd].as_u32 = imm;
             break;
@@ -183,8 +182,8 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
         }
         case OP_LDR:
         {
-            Reg rd = GET_RD(inst);
-            Reg rs = GET_RA(inst);
+            unsigned int rd = GET_RD(inst);
+            unsigned int rs = GET_RA(inst);
             uint16_t imm = GET_IMM14(inst);
             int msb = (imm & ( 1 << 13 )) >> 13;
             int16_t shift = (( 1 << 13 ) - 1) & imm;
@@ -198,8 +197,8 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
         
         case OP_STR:
         {
-            Reg rd = GET_RD(inst);
-            Reg rs = GET_RA(inst);
+            unsigned int rd = GET_RD(inst);
+            unsigned int rs = GET_RA(inst);
             uint16_t imm = GET_IMM14(inst);
             int msb = (imm & ( 1 << 13 )) >> 13;
             int16_t shift = (( 1 << 13 ) - 1) & imm;
@@ -229,24 +228,24 @@ static inline int interpret(struct vm* vm, uint32_t inst) {
 
 static inline void profile(struct vm* vm, uint32_t prev_ip) {
         uint32_t ip = GET_REG_AS(RIP, as_u32);
-        LoopHeader* lh = NULL;
+        LoopHeader lh;
         if (vm == NULL)
             return;
         if (ip < prev_ip) {
-            lh = lookup(&vm->loop_headers, &ip, 4);
-            if (lh != NULL) 
-                lh->heat++;
-            else {
-                ALLOCATE(lh, sizeof(LoopHeader), 1);
-                INIT_TRACE((*lh->trace));
-                lh->heat = 1;
-                insert(&vm->loop_headers, &ip, lh, 4);
+            try {
+                lh = vm->loop_headers.at(ip);
+                lh.heat++;
+                vm->is_tracing = false;
+            } catch (std::exception e) {
+                lh.heat = 0;
+                lh.trace = NULL;
+                vm->loop_headers[ip] = lh;
+                vm->is_tracing = true;
+
             }
-            vm->tp = lh->trace;
+            vm->tp = lh.trace;
 
         }
-        if (lh == NULL)
-            vm->is_tracing = false;
         
 }
 
@@ -309,5 +308,4 @@ void write_trace(struct vm* vm, Trace* trace) {
     gen_x64(vm, &trace->bytecode);
 
 }
-
 
