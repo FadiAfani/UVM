@@ -6,7 +6,6 @@
 #include "../include/asm_data.hpp"
 #include "../include/error.hpp"
 #include "../include/instruction.hpp"
-#include <memory>
 
 
 using namespace std;
