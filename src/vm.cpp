@@ -1,16 +1,31 @@
+#include <cstring>
 #include <fstream>
+#include <stdexcept>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <assert.h>
 #include "../include/jit.h"
 
-VM::VM() {}
+VM::VM() {
+    std::memset(this->regs, 0, sizeof(this->regs));
+    this->regs[R7].as_int = -1;
+    this->regs[R6].as_int = -1;
+}
 
 Word VM::get_reg(Reg r) {
     return this->regs[r];
 }
 
+uint32_t VM::fetch() {
+    return this->memory[ this->regs[RIP].as_u32++ ];
+}
+
+uint8_t VM::decode(uint32_t inst) {
+    return (inst & OPCODE_MASK) >> 24;
+}
+
 int VM::interpret(uint32_t inst) {
-    uint8_t opcode = GET_OPCODE(inst);
+    uint8_t opcode = this->decode(inst);
 
     switch(opcode) {
         case OP_ADD:
@@ -216,21 +231,28 @@ int VM::interpret(uint32_t inst) {
 }
 
 void VM::load_binary_file(const char* fn) {
-    std::fstream fd(fn, std::ios::binary);
+
+    if (fn == NULL) {
+        throw std::runtime_error("specify a file path - fn is null");
+    }
+
+    std::fstream fd;
+    fd.open(fn, std::fstream::out | std::fstream::in | std::fstream::binary);
+    fd.seekg(0, std::fstream::end);
     size_t len = fd.tellg();
-    fd.seekg(0, std::ios::beg);
+    fd.seekg(0, std::fstream::beg);
     char* buff = reinterpret_cast<char*>(this->memory);
     fd.read(buff, len);
 }
 
 void VM::run() {
-    Trace* tp;
+    Trace* tp = nullptr;
     for (;;) {
-        uint32_t inst = READ_INST(this);
+        uint32_t inst = this->fetch();
         this->jit->profile(this, inst);
         this->jit->record_inst(this, inst);
         //this->jit->get_mod_regs(inst);
-        tp = this->jit->get_tp();
+        //tp = this->jit->get_tp();
 
         if (this->jit->get_native_exec() && tp != nullptr && !this->jit->get_is_tracing()) {
             /* trace needs to be compiled */

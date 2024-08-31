@@ -431,8 +431,8 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
                     trace = new Trace();
                     this->is_tracing = true;
                 }
-                this->tp = trace;
             }
+            this->tp = trace;
     }
 
 }

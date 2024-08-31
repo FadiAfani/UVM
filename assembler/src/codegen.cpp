@@ -146,10 +146,6 @@ void Compiler::compile() {
     }
     std::sort(sorted_keys.begin(), sorted_keys.end(), [](auto a, auto b) {return a.second < b.second;});
 
-    /* metadata */
-    this->output_file.write((char*) this->code.size(), 4);
-    this->output_file.write((char*) this->labels.size(), 4);
-
     for (const auto& k : sorted_keys) {
         std::vector<uint32_t> code = this->compile_label(k.first);
         this->output_file.write((char*) code.data(), code.size() * 4);

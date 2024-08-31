@@ -147,10 +147,11 @@ class VM {
     uint32_t memory[MEM_SIZE];
     JITCompiler* jit;
 
-
     public:
         VM();
         Word get_reg(Reg r);
+        uint32_t fetch();
+        uint8_t decode(uint32_t inst);
         int interpret(uint32_t inst);
         void load_binary_file(const char* fn);
         void run();
