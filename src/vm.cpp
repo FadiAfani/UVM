@@ -12,7 +12,7 @@ VM::VM() {
     this->regs[R6].as_int = -1;
 }
 
-Word VM::get_reg(Reg r) {
+Word& VM::get_reg(Reg r) {
     return this->regs[r];
 }
 
@@ -22,6 +22,14 @@ uint32_t VM::fetch() {
 
 uint8_t VM::decode(uint32_t inst) {
     return (inst & OPCODE_MASK) >> 24;
+}
+
+void VM::set_memory_addr(uint32_t addr, uint32_t value) {
+    this->memory[addr] = value;
+}
+
+uint32_t VM::read_memory(uint32_t addr) {
+    return this->memory[addr];
 }
 
 int VM::interpret(uint32_t inst) {
@@ -246,18 +254,22 @@ void VM::load_binary_file(const char* fn) {
 }
 
 void VM::run() {
+
     Trace* tp = nullptr;
     for (;;) {
         uint32_t inst = this->fetch();
-        this->jit->profile(this, inst);
-        this->jit->record_inst(this, inst);
-        //this->jit->get_mod_regs(inst);
-        //tp = this->jit->get_tp();
+        if (this->jit != nullptr) {
 
-        if (this->jit->get_native_exec() && tp != nullptr && !this->jit->get_is_tracing()) {
-            /* trace needs to be compiled */
-            //tp->func();
+            this->jit->profile(this, inst);
+            this->jit->record_inst(this, inst);
+            //this->jit->get_mod_regs(inst);
+            //tp = this->jit->get_tp();
 
+            if (tp != nullptr && !this->jit->get_is_tracing()) {
+                /* trace needs to be compiled */
+                //tp->func();
+
+            }
         } else {
             int interp_res = this->interpret(inst);
             if (!interp_res) return;

@@ -59,6 +59,7 @@ class JITCompiler {
         Trace* get_tp();
         unsigned int get_cpu_reg(Reg vm_reg);
         void set_target_arch(ArchType arch);
+        void set_memory_addr(uint32_t addr, uint32_t value);
         void dump_output_into_file(const char* fn); 
         void gen_x64(VM* vm, const std::vector<uint32_t>& bytecode);
         void gen_arm(VM* vm, const std::vector<uint32_t>& bytecode);

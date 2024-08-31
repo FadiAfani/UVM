@@ -16,12 +16,12 @@ $(BUILD)/%.o: $(SRC)/%.cpp
 all: $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN)/uvm $^
 
-test_vm: $(TESTS)/test_vm.c $(BUILD)/vm.o
+test_vm: $(TESTS)/test_vm.cpp $(BUILD)/vm.o $(BUILD)/jit.o
 	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
 	./$(TEST_BINS)/$@
 
 
-test_jit: $(TESTS)/test_jit.c $(BUILD)/vm.o $(BUILD)/jit.o $(BUILD)/vector.o
+test_jit: $(TESTS)/test_jit.cpp $(BUILD)/vm.o $(BUILD)/jit.o 
 	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
 	./$(TEST_BINS)/$@
 
