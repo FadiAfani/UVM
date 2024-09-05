@@ -148,11 +148,12 @@ class VM {
     JITCompiler* jit = nullptr;
 
     public:
-        VM();
+        VM(bool jit_enabled);
         Word& get_reg(Reg r);
         uint32_t fetch();
         uint8_t decode(uint32_t inst);
         uint32_t read_memory(uint32_t addr);
+        void save_mod_regs(uint32_t inst);
         void set_memory_addr(uint32_t addr, uint32_t value);
         int interpret(uint32_t inst);
         void load_binary_file(const char* fn);

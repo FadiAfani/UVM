@@ -1,6 +1,9 @@
 #ifndef JIT_H
 #define JIT_H
 
+#include <memory>
+#include <optional>
+#include <queue>
 #include <stdexcept>
 #include <stdint.h>
 #include <iostream>
@@ -21,58 +24,105 @@
 
 typedef void (*exec_func)();
 
-typedef enum arch_type {
+enum ArchType {
     X86_64,
-}ArchType;
+};
 
 
-typedef struct trace {
-    uint32_t saddr;
+class Trace {
+    int path_num;
     int heat;
-    exec_func func;
+    exec_func func = nullptr;
     std::vector<uint32_t> bytecode;
     std::stack<Reg> mod_regs;
-}Trace;
+    std::vector<Trace*> paths;
+
+    public:
+        int get_heat();
+        exec_func get_func();
+        const std::vector<uint32_t>& get_bytecode();
+        void set_path_num(int n);
+        void set_func(exec_func func);
+        void push_inst(uint32_t inst);
+        void push_path(Trace* trace);
+        void inc_heat();
+
+
+};
 
 class VM;
 
 typedef void (*RegTransferFunc)(VM* vm, unsigned int, Reg, bool);
 
+enum X64Reg {
+    RAX,
+    RBX,
+    RCX, 
+    RDX,
+    RSI,
+    RDI,
+    RBP,
+    RSP,
+    X64_R8,
+    X64_R9,
+    X64_R10,
+    X64_R11,
+    X64_R12,
+    X64_R13,
+    X64_R14,
+    X64_R15,
+};
+
+class Profiler {
+
+};
+
+
 class JITCompiler {
     std::unordered_map<int, Trace*> trace_map;
-    uint8_t* mmem;
-    size_t mmem_size;
-    size_t mmem_cap;
     ArchType target_arch;
-    Trace* tp = nullptr;
+    Trace* active_trace = nullptr;
+    uint8_t* buf = nullptr;
+    size_t buf_size = 0;
+    size_t buf_cap = 0;
     bool is_tracing = true;
-    bool native_exec;
-    const std::unordered_map<Reg, unsigned int> x64_reg;
+    const std::unordered_map<Reg, unsigned int> x64_reg = {
+        {R0, 0},
+        {R1, 3},
+        {R2, 1},
+        {R3, 2},
+        {R4, 6},
+        {R5, 7},
+        {R6, 5},
+        {R7, 4}
+
+    };
     const std::unordered_map<Reg, unsigned int> arm_reg;
 
     public:
         JITCompiler();
         JITCompiler(ArchType arch);
         ArchType get_target_arch();
-        bool get_native_exec();
         bool get_is_tracing();
-        Trace* get_tp();
+        Trace* get_active_trace();
         unsigned int get_cpu_reg(Reg vm_reg);
         void set_target_arch(ArchType arch);
         void set_memory_addr(uint32_t addr, uint32_t value);
+        void set_active_trace(Trace* trace);
         void dump_output_into_file(const char* fn); 
-        void gen_x64(VM* vm, const std::vector<uint32_t>& bytecode);
+        void gen_x64(const std::vector<uint32_t>& bytecode);
         void gen_arm(VM* vm, const std::vector<uint32_t>& bytecode);
         void transfer_reg_x64(VM* vm, unsigned int cpu_reg, Reg vm_reg, bool to_cpu);
         void transfer_reg_state(VM* vm, bool to_cpu, const RegTransferFunc tfunc);
         void map_trace(uint32_t ip, Trace* trace);
         Trace* get_trace(uint32_t ip);
-        void compile_trace(VM* vm, Trace* trace);
-        void append_code(uint8_t* buffer, size_t len);
+        bool compile_trace(VM* vm, Trace* trace);
+        void emit(uint8_t* buffer, size_t len);
         void init_mmem();
         void profile(VM* vm, uint32_t inst);
-        void record_inst(VM*, uint32_t inst);
+        void record_inst(VM* vm, uint32_t inst);
         void get_mod_regs(uint32_t inst);
+
 };
 
 #endif

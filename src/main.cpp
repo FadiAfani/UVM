@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
         
     }
-    VM vm;
+    VM vm(true);
     vm.load_binary_file(argv[1]);
     vm.run();
     return 0;

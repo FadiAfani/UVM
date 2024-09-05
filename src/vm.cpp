@@ -6,10 +6,14 @@
 #include <assert.h>
 #include "../include/jit.h"
 
-VM::VM() {
+VM::VM(bool jit_enabled) {
     std::memset(this->regs, 0, sizeof(this->regs));
     this->regs[R7].as_int = -1;
     this->regs[R6].as_int = -1;
+    if (jit_enabled) {
+        this->jit = new JITCompiler();
+    }
+    
 }
 
 Word& VM::get_reg(Reg r) {
@@ -251,30 +255,71 @@ void VM::load_binary_file(const char* fn) {
     fd.seekg(0, std::fstream::beg);
     char* buff = reinterpret_cast<char*>(this->memory);
     fd.read(buff, len);
+    fd.close();
+}
+
+
+void VM::save_mod_regs(uint32_t inst) {
+    if (this->jit == nullptr)
+        throw std::runtime_error("jit mode is not enabled");
+    else if (this->jit->get_active_trace() == nullptr)
+        return;
+    Reg rd;
+    switch(this->decode(inst)) {
+        /* instructions that use the rd register */
+        case OP_ADD:
+        case OP_ADDI:
+        case OP_FADD:
+        case OP_SUB:
+        case OP_SUBI:
+        case OP_FSUB:
+        case OP_MOV:
+        case OP_MOVI:
+        case OP_MULT:
+        case OP_FMULT:
+        case OP_DIV:
+        case OP_FDIV:
+        case OP_CMP:
+        case OP_FCMP:
+        case OP_STR:
+            rd = GET_RD(inst);
+            //this->jit->get_active_trace()->mod_regs.push(rd);
+            break;
+    }
+
 }
 
 void VM::run() {
 
-    Trace* tp = nullptr;
+    if (this->jit == nullptr) {
+        for (;;) {
+            uint32_t inst = this->fetch();
+            int interp_res = this->interpret(inst);
+            if (!interp_res) 
+                return;
+        }
+    }
+
     for (;;) {
+
         uint32_t inst = this->fetch();
-        if (this->jit != nullptr) {
+        this->jit->profile(this, inst);
+        this->jit->record_inst(this, inst);
+        Trace* tp = this->jit->get_active_trace();
 
-            this->jit->profile(this, inst);
-            this->jit->record_inst(this, inst);
-            //this->jit->get_mod_regs(inst);
-            //tp = this->jit->get_tp();
 
-            if (tp != nullptr && !this->jit->get_is_tracing()) {
-                /* trace needs to be compiled */
-                //tp->func();
+        if (tp != nullptr && !this->jit->get_is_tracing()) {
+            if (tp->get_func() == nullptr) 
+                this->jit->compile_trace(this, tp);
+            tp->get_func()();
+            this->jit->set_active_trace(nullptr);
 
-            }
         } else {
             int interp_res = this->interpret(inst);
-            if (!interp_res) return;
+            if (!interp_res) {
+                return;
+            }
         }
-
     }
 
 }

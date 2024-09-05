@@ -1,8 +1,7 @@
 #include <criterion/criterion.h>
 #include "../include/vm.h"
-#include <stdio.h>
 
-VM vm;
+VM vm(false);
 
 void setup(void) {
 
@@ -79,9 +78,6 @@ Test(vm_tests, test_cmp_bt) {
     cr_expect(vm.get_reg(RFLG).as_int == 1, "RFLG should have hold a value of 1");
 
 }
-
-
-
 
 Test(vm_tests, test_movi) {
     vm.set_memory_addr(0, OP_MOVI << 24 | R1 << 19 | 15);

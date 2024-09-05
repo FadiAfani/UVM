@@ -1,4 +1,5 @@
 #include "../include/jit.h"
+#include <fstream>
 #include <stdexcept>
 #include <stdlib.h>
 #include <stdio.h>
@@ -6,76 +7,94 @@
 #include <utility>
 #include <vector>
 
+int Trace::get_heat() { 
+    return this->heat; 
+}
 
+exec_func Trace::get_func() { 
+    return this->func; 
+}
 
-JITCompiler::JITCompiler(): x64_reg(
-    {
-        {R0, 0},
-        {R1, 3},
-        {R2, 1},
-        {R3, 2},
-        {R4, 6},
-        {R5, 7},
-        {R6, 5},
-        {R7, 4}
-    }) 
+const std::vector<uint32_t>& Trace::get_bytecode() { 
+    return this->bytecode; 
+}
 
-{
+void Trace::set_path_num(int n) {
+    this->path_num = n;
+}
 
+void Trace::set_func(exec_func func) {
+    this->func = func; 
+}
+
+void Trace::push_inst(uint32_t inst) {
+    this->bytecode.push_back(inst);
+}
+
+void Trace::push_path(Trace* trace) {
+    trace->set_path_num(this->paths.size());
+    this->paths.push_back(trace);
+}
+
+void Trace::inc_heat() {
+    this->heat++;
 }
 
 
-JITCompiler::JITCompiler(ArchType arch): x64_reg(
-    {
-        {R0, 0},
-        {R1, 3},
-        {R2, 1},
-        {R3, 2},
-        {R4, 6},
-        {R5, 7},
-        {R6, 5},
-        {R7, 4}
-    }) 
+JITCompiler::JITCompiler() {
+    this->init_mmem();
+}
 
-{
+
+JITCompiler::JITCompiler(ArchType arch) {
     this->target_arch = arch;
+    this->init_mmem();
 }
 
 unsigned int JITCompiler::get_cpu_reg(Reg vm_reg) {
-    uint8_t r;
+    unsigned int r;
     try {
         r = this->x64_reg.at(vm_reg);
     } catch(std::out_of_range& e) {
-        std::cout << e.what() << std::endl;
+        std::cout << "get_cpu_reg: unordered_map.at" << std::endl;
+
     }
 
     return r;
 }
 
-Trace* JITCompiler::get_tp() { return this->tp; }
+Trace* JITCompiler::get_active_trace() { return this->active_trace; }
 bool JITCompiler::get_is_tracing() { return this->is_tracing; }
 
 void JITCompiler::set_target_arch(ArchType arch) {
     this->target_arch = arch;
 }
 
-void JITCompiler::dump_output_into_file(const char* fn) {
+void JITCompiler::set_active_trace(Trace* trace) {
+    this->active_trace = trace;
+}
 
+void JITCompiler::dump_output_into_file(const char* fn) {
+    std::ofstream fd;
+    fd.open(fn, std::ostream::out);
+    const char* buff = reinterpret_cast<const char*>(this->buf);
+    fd.write(buff, this->buf_size);
+    fd.close();
 }
 
 
-void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
-    uint32_t inst;
+void JITCompiler::gen_x64(const std::vector<uint32_t>& bytecode) {
+
     unsigned int ra;
     unsigned int rb;
     unsigned int rd;
 
-    //TODO: fail when addr/len > MEM_SIZE
-    for (size_t i = 0; i < bytecode.size(); i++) {
+    for (uint32_t inst : bytecode) {
         uint8_t opcode = GET_OPCODE(inst);
         ra = this->get_cpu_reg(GET_RA(inst));
         rb = this->get_cpu_reg(GET_RB(inst));
         rd = this->get_cpu_reg(GET_RD(inst));
+        //printf("opcode: %d, ra: %d, rb: %d, rd: %d\n", opcode, GET_RA(inst), GET_RB(inst), GET_RD(inst));
 
 
         switch(opcode) {
@@ -87,7 +106,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x03, ra, rd) 
                 };
 
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_MOVI:
@@ -99,10 +118,11 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x03, 0, rd),
                     0,
                     0,
+                    0,
                     0
                 };
                 *(uint32_t*)(mc + 3) = imm;
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
 
             }
@@ -123,7 +143,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x03, ra, rd) 
                 };
                 *(uint32_t*)(mc + 3) = imm;
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_SUBI:
@@ -142,7 +162,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x03, ra, rd) 
                 };
                 *(uint32_t*)(mc + 3) = imm;
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_ADD:
@@ -158,7 +178,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0x89, 
                     mod2
                 }; 
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_SUB:
@@ -175,7 +195,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0x89, 
                     mod2
                 }; 
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_MULT:
@@ -193,7 +213,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0x89, 
                     mod2
                 }; 
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_DIV:
@@ -222,19 +242,19 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     mod3
                 };
 
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_RET:
             {
                 uint8_t mc[] = {0xc3};
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_HALT:
             {
                 uint8_t mc[] = {0xf4};
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_PUSH:
@@ -243,7 +263,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0xff,
                     MOD_BYTE(0x3, 0x6, rd),
                 };
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_CALL:
@@ -252,7 +272,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0xff,
                     MOD_BYTE(0x0, 0x2, rd),
                 };
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_CMP:
@@ -262,7 +282,7 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     0x3b,
                     MOD_BYTE(0x3, rd, ra), 
                 };
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
 
             }
@@ -288,9 +308,9 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x2, rd, ra), // 4-byte displacement
                     0,0,0,0
                 };
-                *(uint64_t*) (mc + 2) = reinterpret_cast<uint64_t>(this->mmem);
+                *(uint64_t*) (mc + 2) = reinterpret_cast<uint64_t>(this->buf);
                 *(int32_t*) (mc + 16) = disp;
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
 
             }
@@ -314,9 +334,9 @@ void JITCompiler::gen_x64(VM* vm, const std::vector<uint32_t>& bytecode) {
                     MOD_BYTE(0x2, rd, ra), // 4-byte displacement
                     0,0,0,0
                 };
-                *(uint64_t*) (mc + 2) = reinterpret_cast<uint64_t>(this->mmem);
+                *(uint64_t*) (mc + 2) = reinterpret_cast<uint64_t>(this->buf);
                 *(int32_t*) (mc + 16) = disp;
-                this->append_code(mc, sizeof(mc));
+                this->emit(mc, sizeof(mc));
                 break;
             }
             case OP_JB:
@@ -363,7 +383,7 @@ void JITCompiler::transfer_reg_x64(VM* vm, unsigned int cpu_reg, Reg vm_reg, boo
         MOD_BYTE(0, cpu_reg, 0)
     };
     *(uint64_t*) (mc + 2) = vm->get_reg(vm_reg).as_u64;
-     this->append_code(mc, sizeof(mc));
+     this->emit(mc, sizeof(mc));
 }
 
 void JITCompiler::transfer_reg_state(VM* vm, bool to_cpu, const RegTransferFunc tfunc) {
@@ -371,11 +391,11 @@ void JITCompiler::transfer_reg_state(VM* vm, bool to_cpu, const RegTransferFunc 
 }
 
 Trace* JITCompiler::get_trace(uint32_t ip) {
-    Trace* t = nullptr;
+    Trace* t;
     try {
         t = this->trace_map.at(ip);
     } catch(std::out_of_range& e) {
-        std::cout << e.what() << std::endl;
+        return nullptr;
     }
 
     return t;
@@ -386,24 +406,26 @@ void JITCompiler::map_trace(uint32_t ip, Trace* trace) {
     this->trace_map.insert(p);
 
 }
-void JITCompiler::compile_trace(VM* vm, Trace* trace) {
-    if (trace == nullptr)
-        return;
+bool JITCompiler::compile_trace(VM* vm, Trace* trace) {
+    if (trace == nullptr || vm == nullptr)
+        return false;
 
-    //TODO: mmem is not dynamic !!! 
-    trace->bytecode.push_back(OP_RET << 24);
-    trace->func = reinterpret_cast<exec_func>(this->mmem + this->mmem_size);
-    gen_x64(vm, trace->bytecode);
+
+    //TODO: buf is not dynamic !!! 
+    trace->push_inst(OP_RET << 24);
+    trace->set_func(reinterpret_cast<exec_func>(this->buf + this->buf_size));
+    this->gen_x64(trace->get_bytecode());
+    this->dump_output_into_file("binary_dump");
+    
+    return true;
     
 }
 
+void JITCompiler::emit(uint8_t* buff, size_t len) {
 
-
-void JITCompiler::append_code(uint8_t* buff, size_t len) {
-
-    if (buff != NULL) {
-        memcpy(this->mmem + this->mmem_size, buff, len);
-        this->mmem_size += len;
+    if (buff != nullptr) {
+        memcpy(this->buf + this->buf_size, buff, len);
+        this->buf_size += len;
     }
 }
 
@@ -412,6 +434,7 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
     uint32_t prev_ip = vm->get_reg(RIP).as_u32;
     uint32_t ip;
     Trace* trace = nullptr;
+
     switch(GET_OPCODE(inst)) {
         case OP_JB:
         case OP_JE:
@@ -425,21 +448,43 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
             if (ip < prev_ip) {
                 trace = this->get_trace(ip);
                 if (trace != nullptr) {
-                    trace->heat++;
+                    trace->inc_heat();
                     this->is_tracing = false;
                 } else {
                     trace = new Trace();
+                    this->map_trace(ip, trace);
                     this->is_tracing = true;
                 }
+
+            /* handle cases where RIP advances forward 
+             * examples include:
+             * if-else if-else statements in high level languages */
+            } else if (ip == prev_ip + 1) {
+                /* condition satisfied */
+                this->is_tracing = true;
+                
+            } else {
+                /* condition unsatisfied */
+                trace = new Trace();
+                trace->set_path_num(this->active_trace->get_bytecode().size());
+                this->active_trace->push_path(trace);
+                this->set_active_trace(trace);
+                this->is_tracing = true;
+
             }
-            this->tp = trace;
+
+            this->set_active_trace(trace);
+            break;
     }
 
 }
 
-void JITCompiler::record_inst(VM* vm, uint32_t inst) {
-    if (this->tp == NULL || !this->is_tracing) 
+void JITCompiler::record_inst(VM* vm,  uint32_t inst) {
+    Trace* trace = this->get_active_trace();
+    if (trace == nullptr || !this->is_tracing) 
         return;
+
+
     switch(GET_OPCODE(inst)) {
         case OP_JB:
         case OP_JE:
@@ -451,13 +496,13 @@ void JITCompiler::record_inst(VM* vm, uint32_t inst) {
             break;
         
         default:
-            this->tp->bytecode.push_back(inst);
+            trace->push_inst(inst);
             break;
     }
 }
 
 void JITCompiler::init_mmem() {
-    this->mmem = static_cast<uint8_t*>(
+    this->buf = static_cast<uint8_t*>(
             mmap(NULL, 
                 4096,
                 PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -465,31 +510,4 @@ void JITCompiler::init_mmem() {
             );
 }
 
-void JITCompiler::get_mod_regs(uint32_t inst) {
-    Reg rd;
-    switch(GET_OPCODE(inst)) {
-        /* instructions that use the rd register */
-        case OP_ADD:
-        case OP_ADDI:
-        case OP_FADD:
-        case OP_SUB:
-        case OP_SUBI:
-        case OP_FSUB:
-        case OP_MOV:
-        case OP_MOVI:
-        case OP_MULT:
-        case OP_FMULT:
-        case OP_DIV:
-        case OP_FDIV:
-        case OP_CMP:
-        case OP_FCMP:
-        case OP_STR:
-            rd = GET_RD(inst);
-            this->tp->mod_regs.push(rd);
-            break;
-    }
-
-}
-
-bool JITCompiler::get_native_exec() { return this->native_exec; }
 
