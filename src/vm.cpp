@@ -262,7 +262,7 @@ void VM::load_binary_file(const char* fn) {
 void VM::save_mod_regs(uint32_t inst) {
     if (this->jit == nullptr)
         throw std::runtime_error("jit mode is not enabled");
-    else if (this->jit->get_active_trace() == nullptr)
+    else if (this->jit->peek_top_trace() == nullptr)
         return;
     Reg rd;
     switch(this->decode(inst)) {
@@ -305,21 +305,31 @@ void VM::run() {
         uint32_t inst = this->fetch();
         this->jit->profile(this, inst);
         this->jit->record_inst(this, inst);
-        Trace* tp = this->jit->get_active_trace();
 
 
-        if (tp != nullptr && !this->jit->get_is_tracing()) {
-            if (tp->get_func() == nullptr) 
+        if (!this->jit->get_is_tracing()) {
+            Trace* tp = this->jit->pop_trace();
+            if (tp != nullptr && tp->get_func() == nullptr) {
+                this->jit->transfer_reg_state(this, true, transfer_reg_x64);
                 this->jit->compile_trace(this, tp);
-            tp->get_func()();
-            this->jit->set_active_trace(nullptr);
-
-        } else {
-            int interp_res = this->interpret(inst);
-            if (!interp_res) {
-                return;
+                this->jit->transfer_reg_state(this, false, transfer_reg_x64);
             }
-        }
+
+
+            if (tp != nullptr) {
+                /* transfer vm state to cpu */
+                tp->get_func()();
+                /* transfer cpu state to vm */
+            }
+            
+
+        } 
+
+        int interp_res = this->interpret(inst);
+        if (!interp_res) return;
+
+        
+
     }
 
 }
