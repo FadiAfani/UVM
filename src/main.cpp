@@ -12,8 +12,9 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
         
     }
-    VM vm(true);
-    vm.load_binary_file(argv[1]);
-    vm.run();
+    JITCompiler jit;
+    jit.init_mmem();
+    jit.get_vm().load_binary_file(argv[1]);
+    jit.run();
     return 0;
 }

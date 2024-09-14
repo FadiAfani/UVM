@@ -6,17 +6,14 @@
 #include <assert.h>
 #include "../include/jit.h"
 
-VM::VM(bool jit_enabled) {
+VM::VM() {
     std::memset(this->regs, 0, sizeof(this->regs));
     this->regs[R7].as_int = -1;
     this->regs[R6].as_int = -1;
-    if (jit_enabled) {
-        this->jit = new JITCompiler();
-    }
     
 }
 
-Word& VM::get_reg(Reg r) {
+Word& VM::get_reg_as_ref(Reg r) {
     return this->regs[r];
 }
 
@@ -258,80 +255,15 @@ void VM::load_binary_file(const char* fn) {
     fd.close();
 }
 
-
-void VM::save_mod_regs(uint32_t inst) {
-    if (this->jit == nullptr)
-        throw std::runtime_error("jit mode is not enabled");
-    else if (this->jit->peek_top_trace() == nullptr)
-        return;
-    Reg rd;
-    switch(this->decode(inst)) {
-        /* instructions that use the rd register */
-        case OP_ADD:
-        case OP_ADDI:
-        case OP_FADD:
-        case OP_SUB:
-        case OP_SUBI:
-        case OP_FSUB:
-        case OP_MOV:
-        case OP_MOVI:
-        case OP_MULT:
-        case OP_FMULT:
-        case OP_DIV:
-        case OP_FDIV:
-        case OP_CMP:
-        case OP_FCMP:
-        case OP_STR:
-            rd = GET_RD(inst);
-            //this->jit->get_active_trace()->mod_regs.push(rd);
-            break;
-    }
-
-}
-
 void VM::run() {
-
-    if (this->jit == nullptr) {
-        for (;;) {
-            uint32_t inst = this->fetch();
-            int interp_res = this->interpret(inst);
-            if (!interp_res) 
-                return;
-        }
-    }
-
     for (;;) {
-
         uint32_t inst = this->fetch();
-        this->jit->profile(this, inst);
-        this->jit->record_inst(this, inst);
-
-
-        if (!this->jit->get_is_tracing()) {
-            Trace* tp = this->jit->pop_trace();
-            if (tp != nullptr && tp->get_func() == nullptr) {
-                this->jit->transfer_reg_state(this, true, transfer_reg_x64);
-                this->jit->compile_trace(this, tp);
-                this->jit->transfer_reg_state(this, false, transfer_reg_x64);
-            }
-
-
-            if (tp != nullptr) {
-                /* transfer vm state to cpu */
-                tp->get_func()();
-                /* transfer cpu state to vm */
-            }
-            
-
-        } 
-
-        int interp_res = this->interpret(inst);
-        if (!interp_res) return;
-
-        
-
+        int res = this->interpret(inst);
+        if (!res)
+            return;
     }
-
 }
+
+
 
 

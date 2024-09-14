@@ -19,6 +19,14 @@ const std::vector<uint32_t>& Trace::get_bytecode() {
     return this->bytecode; 
 }
 
+uint8_t* JITCompiler::get_buf() {
+    return this->buf;
+}
+
+VM& JITCompiler::get_vm() {
+    return this->vm;
+}
+
 void Trace::set_path_num(int n) {
     this->path_num = n;
 }
@@ -334,20 +342,6 @@ void JITCompiler::gen_x64(const std::vector<uint32_t>& bytecode) {
                 this->emit(mc, sizeof(mc));
                 break;
             }
-            case OP_JB:
-                break;
-            case OP_JBE:
-                break;
-            case OP_JL:
-                break;
-            case OP_JLE:
-                break;
-            case OP_JE:
-                break;
-            case OP_JNE:
-                break;
-            case OP_JMP:
-                break;
 
             default:
                 fprintf(stderr, "Not Implemented\n");
@@ -360,9 +354,7 @@ void JITCompiler::gen_x64(const std::vector<uint32_t>& bytecode) {
 
 void transfer_reg_x64(JITCompiler* jit, VM* vm, unsigned int cpu_reg, Reg vm_reg, bool to_cpu) {
 
-    uint8_t opcode = 0x89;
-    if (to_cpu) 
-        opcode = 0x8b;
+    uint8_t opcode = to_cpu ? 0x8b : 0x89;
 
     /* mov rax, imm64
      * mov cpu_reg, [rax]
@@ -375,7 +367,7 @@ void transfer_reg_x64(JITCompiler* jit, VM* vm, unsigned int cpu_reg, Reg vm_reg
         opcode,
         MOD_BYTE(0, cpu_reg, 0)
     };
-    *(uint64_t*) (mc + 2) = vm->get_reg(vm_reg).as_u64;
+    *(Word**) (mc + 2) = &vm->get_reg_as_ref(vm_reg);
      jit->emit(mc, sizeof(mc));
 }
 
@@ -383,10 +375,10 @@ void transfer_reg_x64(JITCompiler* jit, VM* vm, unsigned int cpu_reg, Reg vm_reg
 /* simply transfers the entire state regardless of changes
  * TODO: this method should only transfer modified state 
  * */
-void JITCompiler::transfer_reg_state(VM* vm, bool to_cpu, const RegTransferFunc tfunc) {
+void JITCompiler::transfer_reg_state(bool to_cpu, const RegTransferFunc tfunc) {
 
     for (auto p : this->x64_reg) {
-        tfunc(this, vm, p.second, p.first, to_cpu);
+        tfunc(this, &this->vm, p.second, p.first, to_cpu);
     }
 
 }
@@ -407,8 +399,8 @@ void JITCompiler::map_trace(uint32_t ip, Trace* trace) {
     this->trace_map.insert(p);
 
 }
-bool JITCompiler::compile_trace(VM* vm, Trace* trace) {
-    if (trace == nullptr || vm == nullptr)
+bool JITCompiler::compile_trace(Trace* trace) {
+    if (trace == nullptr) 
         return false;
 
 
@@ -431,10 +423,11 @@ void JITCompiler::emit(uint8_t* buff, size_t len) {
 }
 
 
-void JITCompiler::profile(VM* vm, uint32_t inst) {
-    uint32_t prev_ip = vm->get_reg(RIP).as_u32;
+void JITCompiler::profile(uint32_t inst) {
+    uint32_t prev_ip = this->vm.get_reg_as_ref(RIP).as_u32;
     uint32_t ip;
     Trace* trace = nullptr;
+    Trace* top;
 
     switch(GET_OPCODE(inst)) {
         case OP_JB:
@@ -444,8 +437,8 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
         case OP_JLE:
         case OP_JNE:
         case OP_JMP:
-            vm->interpret(inst);
-            ip = vm->get_reg(RIP).as_u32;
+            this->vm.interpret(inst);
+            ip = this->vm.get_reg_as_ref(RIP).as_u32;
             if (ip < prev_ip) {
                 trace = this->get_trace(ip);
                 if (trace != nullptr) {
@@ -467,17 +460,13 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
                 /* condition satisfied */
                 this->is_tracing = true;
                 
-            } else {
+            } else if ((top = this->peek_top_trace()) != nullptr){
                 /* condition unsatisfied */
                 trace = new Trace();
-                Trace* top = this->peek_top_trace();
-                if (top != nullptr) {
-                    trace->set_path_num(top->get_bytecode().size());
-                    top->push_path(trace);
-                    this->push_trace(trace);
-                    this->is_tracing = true;
-                }
-
+                trace->set_path_num(top->get_bytecode().size());
+                top->push_path(trace);
+                this->push_trace(trace);
+                this->is_tracing = true;
             }
 
             break;
@@ -485,7 +474,7 @@ void JITCompiler::profile(VM* vm, uint32_t inst) {
 
 }
 
-void JITCompiler::record_inst(VM* vm,  uint32_t inst) {
+void JITCompiler::record_inst(uint32_t inst) {
     Trace* trace = this->peek_top_trace();
     if (trace == nullptr || !this->is_tracing) 
         return;
@@ -535,4 +524,43 @@ Trace* JITCompiler::peek_top_trace() {
         t = this->active_traces.top();
     }
     return t;
+}
+
+
+void JITCompiler::run() {
+
+
+    for (;;) {
+
+        uint32_t inst = this->vm.fetch();
+        this->profile(inst);
+        this->record_inst(inst);
+
+
+        if (!this->get_is_tracing()) {
+            Trace* tp = this->pop_trace();
+            if (tp != nullptr && tp->get_func() == nullptr) {
+
+                /* transfer vm state to cpu */
+                this->transfer_reg_state(true, transfer_reg_x64);
+                this->compile_trace(tp);
+                /* transfer cpu state to vm */
+                this->transfer_reg_state(false, transfer_reg_x64);
+            }
+
+
+            if (tp != nullptr) {
+                tp->get_func()();
+            }
+            
+
+        } 
+
+        int interp_res = this->vm.interpret(inst);
+        if (!interp_res) return;
+
+        
+
+    }
+
 }

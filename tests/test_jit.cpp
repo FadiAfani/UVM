@@ -1,56 +1,30 @@
 #include <criterion/criterion.h>
 #include "../include/jit.h"
 
-struct vm vm;
+JITCompiler jit;
+VM& vm = jit.get_vm();
 
-#define EXEC(ret, ret_t, len) ({ \
-    gen_x64(&vm, 0, len); \
-    ret_t (*f)() = (void*) vm.mmem; \
-    ret = f(); \
-})
+TestSuite(jit_tests);
 
-void setup(void) {
-    init_vm(&vm);
-}
+/* moves value from vm register to cpu register 
+ * adds 5 at the cpu level 
+ * then transfers the register state back to the vm
+ * */
+Test(test_state_transfer_x64, jit_tests) {
+    Word& r = vm.get_reg_as_ref(R0);
+    r.as_int = 3;
+    transfer_reg_x64(&jit, &vm, RBX, R0, true);
+    std::vector<uint32_t> bc = {
+        OP_ADDI << 24 | R1 << 19 | R1 << 14 | 5,
+    };
+    jit.gen_x64(bc);
+    transfer_reg_x64(&jit, &vm, RBX, R0, false);
+    std::vector<uint32_t> ret = { OP_RET << 24 };
+    jit.gen_x64(ret);
+    exec_func func = reinterpret_cast<exec_func>(jit.get_buf());
+    func();
+    cr_expect_eq(r.as_int, 8);
 
-TestSuite(jit_tests, .init=setup);
-
-Test(jit_tests, test_ldr) {
-    vm.memory[10] = 42;
-    vm.regs[R1].as_u64 = 40; // sizeof(uint32_t) * 10
-    vm.memory[0] = OP_LDR << 24 | R0 << 19 | R1 << 14;
-    vm.memory[1] = OP_RET << 24;
-    load_vm_reg_into_x64(&vm, 0x3, R1);
-    uint32_t ret;
-    EXEC(ret, uint32_t, 2);
-    cr_expect_eq(ret, 42);
-
-}
-
-Test(jit_tests, test_str) {
-    vm.regs[R0].as_u64 = 42;
-    vm.regs[R1].as_u64 = 40; // sizeof(uint32_t) * 10
-    vm.memory[0] = OP_STR << 24 | R0 << 19 | R1 << 14;
-    vm.memory[1] = OP_RET << 24;
-    load_vm_reg_into_x64(&vm, 0x0, R0);
-    load_vm_reg_into_x64(&vm, 0x3, R1);
-    uint32_t ret;
-    EXEC(ret, uint32_t, 2);
-    cr_expect_eq(vm.memory[10], 42);
-}
-
-Test(jit_tests, test_cmp) {
-    vm.regs[R0].as_u64 = 10;
-    vm.regs[R1].as_u64 = 20;
-    vm.memory[0] = OP_CMP << 24 | R0 << 19 | R1 << 14;
-    vm.memory[1] = OP_RET << 24;
-    load_vm_reg_into_x64(&vm, 0x0, R0);
-    load_vm_reg_into_x64(&vm, 0x3, R1);
-    uint8_t ret;
-    EXEC(ret, uint8_t, 2);
-    asm("setb %%al\n\t" 
-        "mov %0, %%al"
-            : "=r"(ret));
-    cr_expect_eq(ret, 1);
 
 }
+

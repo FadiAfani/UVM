@@ -142,14 +142,18 @@ typedef enum interrupt {
 
 class JITCompiler;
 
+class Interpreter {
+
+};
+
 class VM {
     Word regs[RFLG + 1];
     uint32_t memory[MEM_SIZE];
-    JITCompiler* jit = nullptr;
 
     public:
-        VM(bool jit_enabled);
-        Word& get_reg(Reg r);
+        VM();
+        Word& get_reg_as_ref(Reg r);
+        JITCompiler* get_jit();
         uint32_t fetch();
         uint8_t decode(uint32_t inst);
         uint32_t read_memory(uint32_t addr);
