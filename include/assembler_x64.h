@@ -38,66 +38,164 @@ namespace X64 {
         uint8_t size;
     };
 
+    template<typename T>
     struct MemOp {
         Register reg;
-        union {
-            int32_t as_i32;
-            int16_t as_i16;
-            int8_t as_i8;
-        }disp;
-        uint8_t disp_size;
+        T disp;
     };
 
 
-    class Assembler : public NativeAssembler {
+    class Assembler : NativeAssembler {
 
-        void emit_inst_rr(std::initializer_list<uint8_t>,  Register dst, Register src);
+        void emit_inst_rr(std::initializer_list<uint8_t> op,  Register dst, Register src);
         template<typename T>
-        void emit_inst_ri(std::initializer_list<uint8_t>, uint8_t opex, Register dst, T imm);
+        void emit_inst_ri(std::initializer_list<uint8_t> op , uint8_t opex, Register dst, T imm) {
+            if (dst.size > 8 || sizeof(imm) > 8 || dst.size != sizeof(imm))
+                throw std::logic_error("malformed instruction: register/immediate");
+
+            EMIT_REX(dst, REX(1,0,0,0));
+            for (auto x : op)
+                this->emit_byte(x);
+            this->emit_byte( MOD_BYTE(3, opex, dst.encoding) );
+            this->emit_imm(imm);
+        }
         template<typename T>
-        void emit_inst_mi(std::initializer_list<uint8_t>, uint8_t opex, MemOp dst, T imm);
-        void emit_inst_rm(std::initializer_list<uint8_t>, Register dst, MemOp src);
+        void emit_inst_rm(std::initializer_list<uint8_t> op, Register dst, MemOp<T> src) {
+            if (src.disp_size > 4 || dst.size > 8 || dst.size != src.reg.size)
+                throw std::logic_error("malformed instruction: register/memory");
+            for (auto x : op)
+                this->emit_byte(x);
+            this->emit_byte( MOD_BYTE(sizeof(T) == 4 ? 3 : sizeof(T), dst.encoding, src.reg.encoding));
+            this->emit_imm(src.disp);
+        }
+
+        template<typename T, typename U>
+        void emit_inst_mi(std::initializer_list<uint8_t> op, uint8_t opex, MemOp<U> dst, T imm) {
+            if (sizeof(imm) > 8 || dst.disp_size > 4 || dst.reg.size > 8)
+                throw std::logic_error("malformed instruction: memory/immediate");
+
+            EMIT_REX(dst.reg, REX(1,0,0,0));
+            for (auto x : op)
+                this->emit_byte(x);
+            this->emit_byte( MOD_BYTE(sizeof(U) == 4 ? 3 : sizeof(U), opex, dst.reg.encoding));
+            this->emit_imm(dst.disp);
+            this->emit_imm(imm);
+        }
 
         public:
-            Assembler();
             void mov(Register dst, Register src);
-            void mov(Register dst, MemOp src);
-            void mov(MemOp dst, Register src);
             template<typename T>
-            void mov(Register dst, T imm);
+            void mov(Register dst, MemOp<T> src) {
+                this->emit_inst_rm({0x8b}, src, dst);
+            }
+            template<typename T, typename U>
+            void mov(MemOp<U> dst, Register src) {
+                this->emit_inst_rm({0x89}, src, dst);
+            }
             template<typename T>
-            void mov(MemOp dst, T imm);
+            void mov(Register dst, T imm) {
+                uint8_t op = 0xb8;
+                if (sizeof(T) == 1)
+                    op = 0x8a;
+
+                this->emit_inst_ri( {op + dst.encoding}, dst, imm);
+            }
+
+            template<typename T, typename U>
+            void mov(MemOp<U> dst, T imm) {
+                uint8_t op = 0xc7;
+                if (sizeof(T) == 1)
+                    op = 0xc6;
+                this->emit_inst_mi( {op}, dst, imm);
+            }
 
             void add(Register dst, Register src);
-            void add(Register dst, MemOp src);
-            void add(MemOp dst, Register src);
             template<typename T>
-            void add(Register dst, T imm);
+            void add(Register dst, MemOp<T> src) {
+                this->emit_inst_rm({0x03}, dst, src);
+            }
             template<typename T>
-            void add(MemOp dst, T imm);
+            void add(MemOp<T> dst, Register src) {
+                this->emit_inst_rm({0x01}, dst, src);
+            }
+
+            template<typename T>
+            void add(Register dst, T imm) {
+                uint8_t op = 0x81;
+                if (sizeof(T) == 1)
+                    op = 0x83;
+                this->emit_inst_ri({op}, dst, imm);
+            }
+
+            template<typename T, typename U>
+            void add(MemOp<U> dst, T imm) {
+                uint8_t op = 0x81;
+                if (sizeof(T) == 1)
+                    op = 0x83;
+                this->emit_inst_mi({op}, dst, imm);
+            }
 
             void sub(Register dst, Register src);
-            void sub(Register dst, MemOp src);
-            void sub(MemOp dst, Register src);
             template<typename T>
-            void sub(Register dst, T imm);
+            void sub(Register dst, MemOp<T> src) {
+                this->emit_inst_rm({0x29}, dst, src);
+            }
             template<typename T>
-            void sub(MemOp dst, T imm);
+            void sub(MemOp<T> dst, Register src) {
+                this->emit_inst_rm({0x2b}, src, dst);
+            }
+
+            template<typename T>
+            void sub(Register dst, T imm) {
+                uint8_t op = 0x81;
+                if (dst.size > 1 && sizeof(T) == 1)
+                    op = 0x83;
+                else
+                    op = 0x80;
+                this->emit_inst_ri({op}, 5, dst, imm);
+            }
+
+            template<typename U, typename T>
+            void sub(MemOp<U> dst, T imm) {
+
+                uint8_t op = 0x81;
+                if (dst.reg.size > 1 && sizeof(T) == 1)
+                    op = 0x83;
+                else
+                    op = 0x80;
+                this->emit_inst_mi({op}, 5, dst, imm);
+            }
 
             void imul(Register dst, Register src);
-            void imul(Register dst, MemOp src);
             template<typename T>
-            void imul(Register dst, T imm);
+            void imul(Register dst, MemOp<T> src) {
+                this->emit_inst_rm({0x0f, 0xaf}, dst, src);
+            }
             template<typename T>
-            void imul(MemOp dst, T imm);
+            void imul(Register dst, T imm) {
+                std::runtime_error("imul: not implemented");
+            }
+            template<typename T>
+            void imul(MemOp<T> dst, T imm) {
+                std::runtime_error("imul: not implemented");
+            }
 
             void idiv(Register dst);
-            void idiv(MemOp dst);
+            template<typename T>
+            void idiv(MemOp<T> dst) {
+                this->idiv(dst.reg);
+                /* replace mod byte */
+                this->buf[this->buf_size - 1] = MOD_BYTE(dst.disp_size == 4 ? 3 : dst.disp_size, 7, dst.reg.encoding);
+            }
 
             void ret();
             void hlt();
             void push(Register dst);
-            void call(Register dst);
+            template<typename T>
+            void call(T label) {
+                this->emit_byte(0xe8);
+                this->emit_imm(label);
+            }
 
             
     };

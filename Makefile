@@ -6,8 +6,8 @@ TEST_BINS = $(TESTS)/bin
 CFLAGS = -Wall -Wextra -g
 CC = g++
 
-OBJS = $(SRCS:$(SRC)/%.cpp=$(BUILD)/%.o)
 SRCS = $(wildcard $(SRC)/*.cpp)
+OBJS = $(SRCS:$(SRC)/%.cpp=$(BUILD)/%.o)
 TEST_SRCS = $(wildcard $(TESTS)/*.c)
 
 $(BUILD)/%.o: $(SRC)/%.cpp

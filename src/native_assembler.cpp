@@ -25,10 +25,4 @@ void NativeAssembler::emit_byte(uint8_t byte) {
     this->buf[this->buf_size++] = byte;
 }
 
-template<typename T>
-void NativeAssembler::emit_imm(T imm) {
-    if (this->buf_cap - this->buf_size < sizeof(T))
-        this->make_space();
-    *(T*) (this->buf + this->buf_size) = imm;
-}
 

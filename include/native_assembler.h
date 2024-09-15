@@ -20,7 +20,12 @@ class NativeAssembler {
         void init_mmem();
         void emit_byte(uint8_t byte);
         template<typename T>
-        void emit_imm(T imm);
+        void emit_imm(T imm) {
+            if (this->buf_cap - this->buf_size < sizeof(T)) {
+                this->make_space();
+            }
+            *(T*)(this->buf + this->buf_size) = imm;
+        }
 
 
 };
