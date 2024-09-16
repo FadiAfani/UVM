@@ -2,6 +2,13 @@
 
 using namespace X64;
 
+Register::Register() {}
+
+Register::Register(uint8_t encoding, uint8_t size) {
+    this->encoding = encoding;
+    this->size = size;
+}
+
 void Assembler::emit_inst_rr(std::initializer_list<uint8_t> op, Register dst, Register src) {
     if (dst.size > 8 || src.size > 8 || dst.size != src.size)
         throw std::logic_error("malformed instruction: register/register"); 

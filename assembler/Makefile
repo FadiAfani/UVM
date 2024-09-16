@@ -16,3 +16,6 @@ all: $(OBJS)
 
 clear_bin:
 	rm -rf $(BIN)/*
+
+clear_build:
+	rm -rf $(BUILD)/*

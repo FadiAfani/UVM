@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
         
     }
-    JITCompiler jit;
-    jit.init_mmem();
+    JITCompiler<X64::Assembler> jit;
+    jit.get_assembler().init_mmem();
     jit.get_vm().load_binary_file(argv[1]);
     jit.run();
     return 0;

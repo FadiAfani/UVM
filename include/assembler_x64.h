@@ -36,16 +36,28 @@ namespace X64 {
     struct Register {
         uint8_t encoding;
         uint8_t size;
+
+        Register();
+        Register(uint8_t encoding, uint8_t size);
     };
 
-    template<typename T>
+    template<typename T = int8_t>
     struct MemOp {
         Register reg;
         T disp;
+
+        MemOp(Register reg, T disp) {
+            this->reg = reg;
+            this->disp = disp;
+        }
+        MemOp(Register reg) {
+            this->reg = reg;
+            this->disp = 0;
+        }
     };
 
 
-    class Assembler : NativeAssembler {
+    class Assembler : public NativeAssembler {
 
         void emit_inst_rr(std::initializer_list<uint8_t> op,  Register dst, Register src);
         template<typename T>
@@ -61,24 +73,29 @@ namespace X64 {
         }
         template<typename T>
         void emit_inst_rm(std::initializer_list<uint8_t> op, Register dst, MemOp<T> src) {
-            if (src.disp_size > 4 || dst.size > 8 || dst.size != src.reg.size)
+            if (sizeof(T) > 4 || dst.size > 8 || dst.size != src.reg.size)
                 throw std::logic_error("malformed instruction: register/memory");
             for (auto x : op)
                 this->emit_byte(x);
-            this->emit_byte( MOD_BYTE(sizeof(T) == 4 ? 3 : sizeof(T), dst.encoding, src.reg.encoding));
-            this->emit_imm(src.disp);
+
+            uint8_t mod = src.disp == 0 ? (sizeof(T) == 4 ? 3 : sizeof(T)) : 0;
+            this->emit_byte( MOD_BYTE(mod, dst.encoding, src.reg.encoding));
+            if (mod > 0) 
+                this->emit_imm(src.disp);
         }
 
         template<typename T, typename U>
         void emit_inst_mi(std::initializer_list<uint8_t> op, uint8_t opex, MemOp<U> dst, T imm) {
-            if (sizeof(imm) > 8 || dst.disp_size > 4 || dst.reg.size > 8)
+            if (sizeof(imm) > 8 || sizeof(U) > 4 || dst.reg.size > 8)
                 throw std::logic_error("malformed instruction: memory/immediate");
 
             EMIT_REX(dst.reg, REX(1,0,0,0));
             for (auto x : op)
                 this->emit_byte(x);
-            this->emit_byte( MOD_BYTE(sizeof(U) == 4 ? 3 : sizeof(U), opex, dst.reg.encoding));
-            this->emit_imm(dst.disp);
+            uint8_t mod = dst.disp == 0 ? (sizeof(U) == 4 ? 3 : sizeof(U)) : 0;
+            this->emit_byte( MOD_BYTE(mod, opex, dst.reg.encoding));
+            if (mod > 0) 
+                this->emit_imm(dst.disp);
             this->emit_imm(imm);
         }
 
@@ -86,10 +103,10 @@ namespace X64 {
             void mov(Register dst, Register src);
             template<typename T>
             void mov(Register dst, MemOp<T> src) {
-                this->emit_inst_rm({0x8b}, src, dst);
+                this->emit_inst_rm({0x8b}, dst, src);
             }
-            template<typename T, typename U>
-            void mov(MemOp<U> dst, Register src) {
+            template<typename T>
+            void mov(MemOp<T> dst, Register src) {
                 this->emit_inst_rm({0x89}, src, dst);
             }
             template<typename T>
@@ -98,7 +115,7 @@ namespace X64 {
                 if (sizeof(T) == 1)
                     op = 0x8a;
 
-                this->emit_inst_ri( {op + dst.encoding}, dst, imm);
+                this->emit_inst_ri( {op + dst.encoding}, 0, dst, imm);
             }
 
             template<typename T, typename U>
@@ -106,7 +123,7 @@ namespace X64 {
                 uint8_t op = 0xc7;
                 if (sizeof(T) == 1)
                     op = 0xc6;
-                this->emit_inst_mi( {op}, dst, imm);
+                this->emit_inst_mi( {op}, 0, dst, imm);
             }
 
             void add(Register dst, Register src);
@@ -116,7 +133,7 @@ namespace X64 {
             }
             template<typename T>
             void add(MemOp<T> dst, Register src) {
-                this->emit_inst_rm({0x01}, dst, src);
+                this->emit_inst_rm({0x01}, src, dst);
             }
 
             template<typename T>
@@ -124,7 +141,7 @@ namespace X64 {
                 uint8_t op = 0x81;
                 if (sizeof(T) == 1)
                     op = 0x83;
-                this->emit_inst_ri({op}, dst, imm);
+                this->emit_inst_ri({op}, 0, dst, imm);
             }
 
             template<typename T, typename U>
@@ -132,7 +149,7 @@ namespace X64 {
                 uint8_t op = 0x81;
                 if (sizeof(T) == 1)
                     op = 0x83;
-                this->emit_inst_mi({op}, dst, imm);
+                this->emit_inst_mi({op}, 0, dst, imm);
             }
 
             void sub(Register dst, Register src);

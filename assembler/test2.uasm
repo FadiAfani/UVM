@@ -1,0 +1,3 @@
+main:
+    movi r0 50
+    ret

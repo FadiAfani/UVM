@@ -16,6 +16,9 @@ class NativeAssembler {
 
     public:
         NativeAssembler();
+        const uint8_t* get_buf();
+        size_t get_buf_size();
+        size_t get_buf_cap();
         void make_space();
         void init_mmem();
         void emit_byte(uint8_t byte);

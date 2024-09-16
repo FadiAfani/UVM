@@ -140,6 +140,7 @@ typedef enum interrupt {
     INTERRUPT_ILLEGAL_ACCESS
 }Interrupt;
 
+template<typename T>
 class JITCompiler;
 
 class Interpreter {
@@ -153,7 +154,8 @@ class VM {
     public:
         VM();
         Word& get_reg_as_ref(Reg r);
-        JITCompiler* get_jit();
+        template<typename T>
+        JITCompiler<T>* get_jit();
         uint32_t fetch();
         uint8_t decode(uint32_t inst);
         uint32_t read_memory(uint32_t addr);
