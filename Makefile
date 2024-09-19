@@ -21,7 +21,11 @@ test_vm: $(TESTS)/test_vm.cpp $(BUILD)/vm.o $(BUILD)/jit.o
 	./$(TEST_BINS)/$@
 
 
-test_jit: $(TESTS)/test_jit.cpp $(BUILD)/vm.o $(BUILD)/jit.o 
+test_x64_asm: $(TESTS)/test_asm_x64.cpp $(BUILD)/native_assembler.o $(BUILD)/assembler_x64.o
+	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
+	./$(TEST_BINS)/$@
+
+test_jit: $(TESTS)/test_jit.cpp $(BUILD)/vm.o $(BUILD)/jit.o $(BUILD)/native_assembler.o $(BUILD)/assembler_x64.o
 	$(CC) -o $(TEST_BINS)/$@ $^ -lcriterion
 	./$(TEST_BINS)/$@
 
@@ -32,3 +36,5 @@ clear_bin:
 
 clear_build:
 	rm -rf $(BUILD)/*
+
+clear_all: clear_bin clear_build

@@ -101,7 +101,7 @@ enum opcode {
  *
  * */
 
-typedef union word {
+union Word {
     uint8_t as_u8;
     uint16_t as_u16;
     uint32_t as_u32;
@@ -109,7 +109,7 @@ typedef union word {
     int32_t as_int;
     float as_float;
     double as_double;
-}Word;
+};
 
 
 
@@ -153,9 +153,9 @@ class VM {
 
     public:
         VM();
+        void set_reg(std::stack<Reg>& mod_regs, Word val, Reg reg);
+        const Word& get_reg(Reg r);
         Word& get_reg_as_ref(Reg r);
-        template<typename T>
-        JITCompiler<T>* get_jit();
         uint32_t fetch();
         uint8_t decode(uint32_t inst);
         uint32_t read_memory(uint32_t addr);

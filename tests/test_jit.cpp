@@ -1,8 +1,9 @@
 #include <criterion/criterion.h>
 #include "../include/jit.h"
 
-JITCompiler jit;
+JITCompiler<X64::Assembler> jit;
 VM& vm = jit.get_vm();
+X64::Assembler& assembler = jit.get_assembler();
 
 TestSuite(jit_tests);
 
@@ -11,18 +12,16 @@ TestSuite(jit_tests);
  * then transfers the register state back to the vm
  * */
 Test(test_state_transfer_x64, jit_tests) {
+    assembler.init_mmem();
     Word& r = vm.get_reg_as_ref(R0);
     r.as_int = 3;
-    transfer_reg_x64(&jit, &vm, RBX, R0, true);
+    transfer_reg_x64(assembler, &vm, RBX, R0, true);
     std::vector<uint32_t> bc = {
         OP_ADDI << 24 | R1 << 19 | R1 << 14 | 5,
     };
     jit.gen_x64(bc);
-    transfer_reg_x64(&jit, &vm, RBX, R0, false);
-    std::vector<uint32_t> ret = { OP_RET << 24 };
-    jit.gen_x64(ret);
-    exec_func func = reinterpret_cast<exec_func>(jit.get_buf());
-    func();
+    jit.dump_output_into_file("binary_dump");
+    //func();
     cr_expect_eq(r.as_int, 8);
 
 

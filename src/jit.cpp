@@ -13,13 +13,16 @@ void transfer_reg_x64(X64::Assembler& x64_asm, VM* vm, unsigned int cpu_reg, Reg
      * mov cpu_reg, [rax]
      * */
     X64::Register rax(X64::RAX, 8);
-    x64_asm.mov(rax, reinterpret_cast<uint64_t>(&vm->get_reg_as_ref(vm_reg)));
-    X64::Register cpur(cpu_reg, 8);
+    X64::Register reg(cpu_reg, 8);
     X64::MemOp<> memop(rax);
-    if (to_cpu) 
-        x64_asm.mov(cpur, memop);
-    else
-        x64_asm.mov(memop, cpur);
+    if (to_cpu) {
+        x64_asm.mov(reg, vm->get_reg(vm_reg));
+    }
+    else {
+        x64_asm.mov(rax, &vm->get_reg(vm_reg));
+        x64_asm.mov(reg, memop);
+    }
+
 }
 
 int Trace::get_heat() { 
@@ -28,6 +31,10 @@ int Trace::get_heat() {
 
 exec_func Trace::get_func() { 
     return this->func; 
+}
+
+std::vector<Reg>& Trace::get_saved_regs() {
+    return this->saved_regs;
 }
 
 const std::vector<uint32_t>& Trace::get_bytecode() { 

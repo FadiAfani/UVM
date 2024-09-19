@@ -28,6 +28,7 @@ class NativeAssembler {
                 this->make_space();
             }
             *(T*)(this->buf + this->buf_size) = imm;
+            this->buf_size += sizeof(T);
         }
 
 

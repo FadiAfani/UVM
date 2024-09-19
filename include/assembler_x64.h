@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "native_assembler.h"
+#include <iostream>
 #include <stdexcept>
 
 /* MODR/M
@@ -41,7 +42,7 @@ namespace X64 {
         Register(uint8_t encoding, uint8_t size);
     };
 
-    template<typename T = int8_t>
+    template<typename T = int16_t>
     struct MemOp {
         Register reg;
         T disp;
@@ -62,26 +63,31 @@ namespace X64 {
         void emit_inst_rr(std::initializer_list<uint8_t> op,  Register dst, Register src);
         template<typename T>
         void emit_inst_ri(std::initializer_list<uint8_t> op , uint8_t opex, Register dst, T imm) {
-            if (dst.size > 8 || sizeof(imm) > 8 || dst.size != sizeof(imm))
+            std::cout << this->buf_size<< std::endl;
+            if (dst.size > 8 || sizeof(imm) > 8)
                 throw std::logic_error("malformed instruction: register/immediate");
 
             EMIT_REX(dst, REX(1,0,0,0));
-            for (auto x : op)
+            for (auto x : op) {
                 this->emit_byte(x);
+            }
             this->emit_byte( MOD_BYTE(3, opex, dst.encoding) );
             this->emit_imm(imm);
+            std::cout << this->buf_size<< std::endl;
         }
         template<typename T>
         void emit_inst_rm(std::initializer_list<uint8_t> op, Register dst, MemOp<T> src) {
-            if (sizeof(T) > 4 || dst.size > 8 || dst.size != src.reg.size)
+            if (sizeof(T) > 4 || dst.size > 8)
                 throw std::logic_error("malformed instruction: register/memory");
-            for (auto x : op)
+            EMIT_REX(dst, REX(1,0,0,0));
+            for (auto x : op) {
                 this->emit_byte(x);
-
-            uint8_t mod = src.disp == 0 ? (sizeof(T) == 4 ? 3 : sizeof(T)) : 0;
+            }
+            uint8_t mod = src.disp == 0 ? 0 : (sizeof(T) == 4 ? 2 : 1);
             this->emit_byte( MOD_BYTE(mod, dst.encoding, src.reg.encoding));
             if (mod > 0) 
                 this->emit_imm(src.disp);
+
         }
 
         template<typename T, typename U>
@@ -90,9 +96,10 @@ namespace X64 {
                 throw std::logic_error("malformed instruction: memory/immediate");
 
             EMIT_REX(dst.reg, REX(1,0,0,0));
-            for (auto x : op)
+            for (auto x : op) {
                 this->emit_byte(x);
-            uint8_t mod = dst.disp == 0 ? (sizeof(U) == 4 ? 3 : sizeof(U)) : 0;
+            }
+            uint8_t mod = dst.disp == 0 ? 0 : (sizeof(U) == 4 ? 2 : 1);
             this->emit_byte( MOD_BYTE(mod, opex, dst.reg.encoding));
             if (mod > 0) 
                 this->emit_imm(dst.disp);
@@ -114,8 +121,10 @@ namespace X64 {
                 uint8_t op = 0xb8;
                 if (sizeof(T) == 1)
                     op = 0x8a;
+                this->emit_byte( REX(1,0,0,0) );
+                this->emit_byte(dst.encoding + op);
+                this->emit_imm(imm);
 
-                this->emit_inst_ri( {op + dst.encoding}, 0, dst, imm);
             }
 
             template<typename T, typename U>
@@ -213,6 +222,7 @@ namespace X64 {
                 this->emit_byte(0xe8);
                 this->emit_imm(label);
             }
+            void cmp(Register ra, Register rb);
 
             
     };

@@ -48,7 +48,7 @@ void Assembler::idiv(Register dst) {
 }
 
 void Assembler::ret() {
-    this->emit_byte(0xcb);
+    this->emit_byte(0xc3);
 }
 
 void Assembler::hlt() {
@@ -57,5 +57,9 @@ void Assembler::hlt() {
 
 void Assembler::push(Register dst) {
     this->emit_byte(0x50 + dst.encoding);
+}
+
+void Assembler::cmp(Register ra, Register rb) {
+    this->emit_inst_rr({0x3b}, ra, rb);
 }
 

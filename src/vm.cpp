@@ -4,13 +4,21 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <assert.h>
-#include "../include/jit.h"
+#include "../include/vm.h"
 
 VM::VM() {
     std::memset(this->regs, 0, sizeof(this->regs));
     this->regs[R7].as_int = -1;
     this->regs[R6].as_int = -1;
     
+}
+
+void VM::set_reg(std::stack<Reg>& mod_regs, Word val, Reg r) {
+    mod_regs.push(r);
+    this->regs[r] = val;
+}
+const Word& VM::get_reg(Reg r) {
+    return this->regs[r];
 }
 
 Word& VM::get_reg_as_ref(Reg r) {

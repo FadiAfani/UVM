@@ -35,17 +35,19 @@ class Trace {
     int heat;
     exec_func func = nullptr;
     std::vector<uint32_t> bytecode;
-    std::stack<Reg> mod_regs;
+    std::vector<Reg> saved_regs;
     std::vector<Trace*> paths;
 
     public:
         int get_heat();
         exec_func get_func();
         const std::vector<uint32_t>& get_bytecode();
+        std::vector<Reg>& get_saved_regs();
         void set_path_num(int n);
         void set_func(exec_func func);
         void push_inst(uint32_t inst);
         void push_path(Trace* trace);
+        Reg pop_reg();
         void inc_heat();
 
 
@@ -130,7 +132,7 @@ class JITCompiler {
 
             for (uint32_t inst : bytecode) {
                 uint8_t opcode = GET_OPCODE(inst);
-                rae= this->get_cpu_reg(GET_RA(inst));
+                rae = this->get_cpu_reg(GET_RA(inst));
                 rbe = this->get_cpu_reg(GET_RB(inst));
                 rde = this->get_cpu_reg(GET_RD(inst));
                 X64::Register ra(rae, 8);
@@ -145,7 +147,7 @@ class JITCompiler {
                         break;
                     case OP_MOVI:
                     {
-                        uint32_t imm = GET_IMM19(inst);
+                        uint64_t imm = GET_IMM19(inst);
                         assembler.mov(rd, imm);
                         break;
                     }
@@ -191,6 +193,7 @@ class JITCompiler {
                         assembler.call(rd);
                         break;
                     case OP_CMP:
+                        assembler.cmp(ra, rb);
                         break;
 
                     case OP_LDR:
@@ -223,8 +226,7 @@ class JITCompiler {
                     }
 
                     default:
-                        fprintf(stderr, "Not Implemented\n");
-                        exit(EXIT_FAILURE);
+                        break;
 
                 }
             }
@@ -235,9 +237,9 @@ class JITCompiler {
          * TODO: this method should only transfer modified state 
          * */
 
-        void transfer_reg_state(bool to_cpu, const RegTransferFunc<T> tfunc) {
-            for (auto p : this->x64_reg) {
-                tfunc(this->assembler, &this->vm, p.second, p.first, to_cpu);
+        void transfer_reg_state(Trace* trace, bool to_cpu, const RegTransferFunc<T> tfunc) {
+            for (auto p : trace->get_saved_regs()) {
+                tfunc(this->assembler, &this->vm, this->x64_reg.at(p), p, to_cpu);
             }
         }
         void map_trace(uint32_t ip, Trace* trace) {
@@ -262,14 +264,17 @@ class JITCompiler {
 
             trace->push_inst(OP_RET << 24);
             trace->set_func(reinterpret_cast<exec_func>(this->assembler.get_buf() + this->assembler.get_buf_size()));
+
+            this->transfer_reg_state(trace, true, transfer_reg_x64);
             this->gen_x64(trace->get_bytecode());
+            this->transfer_reg_state(trace, false, transfer_reg_x64);
             this->dump_output_into_file("binary_dump");
             
             return true;
         }
         void profile(uint32_t inst) {
 
-            uint32_t prev_ip = this->vm.get_reg_as_ref(RIP).as_u32;
+            uint32_t prev_ip = this->vm.get_reg(RIP).as_u32;
             uint32_t ip;
             Trace* trace = nullptr;
             Trace* top;
@@ -283,7 +288,7 @@ class JITCompiler {
                 case OP_JNE:
                 case OP_JMP:
                     this->vm.interpret(inst);
-                    ip = this->vm.get_reg_as_ref(RIP).as_u32;
+                    ip = vm.get_reg(RIP).as_u32;
                     if (ip < prev_ip) {
                         trace = this->get_trace(ip);
                         if (trace != nullptr) {
@@ -322,6 +327,7 @@ class JITCompiler {
             Trace* trace = this->peek_top_trace();
             if (trace == nullptr || !this->is_tracing) 
                 return;
+            this->preserve_reg(trace, inst);
 
             switch(GET_OPCODE(inst)) {
                 case OP_JB:
@@ -353,10 +359,9 @@ class JITCompiler {
                     if (tp != nullptr && tp->get_func() == nullptr) {
 
                         /* transfer vm state to cpu */
-                        this->transfer_reg_state(true, transfer_reg_x64);
                         this->compile_trace(tp);
                         /* transfer cpu state to vm */
-                        this->transfer_reg_state(false, transfer_reg_x64);
+                        //this->transfer_reg_state(false, transfer_reg_x64);
                     }
 
 
@@ -374,7 +379,21 @@ class JITCompiler {
 
     }
         }
-        void get_mod_regs(uint32_t inst);
+        void preserve_reg(Trace* trace, uint32_t inst) {
+            uint8_t opcode = this->vm.decode(inst);
+            Reg rd = GET_RD(inst);
+            if (opcode == OP_MOV
+                || opcode == OP_MOVI
+                || opcode == OP_ADD
+                || opcode == OP_ADDI
+                || opcode == OP_SUB
+                || opcode == OP_SUBI
+                || opcode == OP_MULT
+                || opcode == OP_DIV
+               ) {
+                trace->get_saved_regs().push_back(rd);
+            }
+        }
         void push_trace(Trace* trace) {
             this->active_traces.push(trace);
         }
@@ -393,6 +412,7 @@ class JITCompiler {
             }
             return t;
         }
+        
 
 };
 
