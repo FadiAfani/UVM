@@ -63,7 +63,6 @@ namespace X64 {
         void emit_inst_rr(std::initializer_list<uint8_t> op,  Register dst, Register src);
         template<typename T>
         void emit_inst_ri(std::initializer_list<uint8_t> op , uint8_t opex, Register dst, T imm) {
-            std::cout << this->buf_size<< std::endl;
             if (dst.size > 8 || sizeof(imm) > 8)
                 throw std::logic_error("malformed instruction: register/immediate");
 
@@ -73,7 +72,6 @@ namespace X64 {
             }
             this->emit_byte( MOD_BYTE(3, opex, dst.encoding) );
             this->emit_imm(imm);
-            std::cout << this->buf_size<< std::endl;
         }
         template<typename T>
         void emit_inst_rm(std::initializer_list<uint8_t> op, Register dst, MemOp<T> src) {
@@ -104,6 +102,19 @@ namespace X64 {
             if (mod > 0) 
                 this->emit_imm(dst.disp);
             this->emit_imm(imm);
+        }
+        template<typename T>
+        void emit_jcc(T rel, uint8_t op) {
+            int rel_size = sizeof(T);
+            if (rel_size >= 2) {
+                emit_byte(0x0f);
+                emit_byte(op + 10);
+            } else {
+                emit_byte(op);
+            }
+            emit_imm(rel);
+
+
         }
 
         public:
@@ -223,6 +234,38 @@ namespace X64 {
                 this->emit_imm(label);
             }
             void cmp(Register ra, Register rb);
+
+            template<typename T>
+            void jb(T rel) {
+                emit_jcc(rel, 0x7f);
+            }
+
+            template<typename T>
+            void jbe(T rel) {
+                emit_jcc(rel, 0x7d);
+            }
+
+            template<typename T>
+            void jl(T rel) {
+                emit_jcc(rel, 0x7c);
+            }
+
+            template<typename T>
+            void jle(T rel) {
+                emit_jcc(rel, 0x7e);
+            }
+            template<typename T>
+            void je(T rel) {
+                emit_jcc(rel, 0x74);
+            }
+
+            template<typename T>
+            void jne(T rel) {
+                emit_jcc(rel, 0x75);
+            }
+
+
+
 
             
     };

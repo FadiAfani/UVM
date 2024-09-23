@@ -41,11 +41,6 @@ const std::vector<uint32_t>& Trace::get_bytecode() {
     return this->bytecode; 
 }
 
-
-void Trace::set_path_num(int n) {
-    this->path_num = n;
-}
-
 void Trace::set_func(exec_func func) {
     this->func = func; 
 }
@@ -54,9 +49,8 @@ void Trace::push_inst(uint32_t inst) {
     this->bytecode.push_back(inst);
 }
 
-void Trace::push_path(Trace* trace) {
-    trace->set_path_num(this->paths.size());
-    this->paths.push_back(trace);
+void Trace::push_path(std::unique_ptr<Trace> trace) {
+    this->paths.push_back(std::move(trace));
 }
 
 void Trace::inc_heat() {
