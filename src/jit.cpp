@@ -37,6 +37,16 @@ std::vector<Reg>& Trace::get_saved_regs() {
     return this->saved_regs;
 }
 
+const std::vector<std::unique_ptr<Trace>>& Trace::get_paths() {
+    return this->paths;
+}
+
+uint32_t Trace::get_guard_inst() { return this->guard_inst; }
+
+void Trace::set_guard_inst(uint32_t inst) {
+    this->guard_inst = inst;
+}
+
 const std::vector<uint32_t>& Trace::get_bytecode() { 
     return this->bytecode; 
 }

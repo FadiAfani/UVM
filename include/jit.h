@@ -34,7 +34,8 @@ enum ArchType {
 class VM;
 
 class Trace {
-    int heat;
+    uint32_t guard_inst;
+    int heat = 0;
     exec_func func = nullptr;
     std::vector<uint32_t> bytecode;
     std::vector<Reg> saved_regs;
@@ -44,6 +45,9 @@ class Trace {
         int get_heat();
         exec_func get_func();
         const std::vector<uint32_t>& get_bytecode();
+        const std::vector<std::unique_ptr<Trace>>& get_paths();
+        uint32_t get_guard_inst();
+        void set_guard_inst(uint32_t inst);
         std::vector<Reg>& get_saved_regs();
         void set_func(exec_func func);
         void push_inst(uint32_t inst);
@@ -165,6 +169,7 @@ class Profiler {
                         jit->get_tracer().set_tracing(false);
                     } else {
                         std::unique_ptr<Trace> trace = std::make_unique<Trace>();
+                        trace->set_guard_inst(inst);
                         jit->get_tracer().push_trace(trace.get());
                         this->map_trace(ip, std::move(trace));
                         jit->get_tracer().set_tracing(true);
@@ -182,6 +187,7 @@ class Profiler {
                 } else if ((top = jit->get_tracer().peek_top_trace()) != nullptr) {
                     /* condition unsatisfied */
                     std::unique_ptr<Trace> trace = std::make_unique<Trace>();
+                    trace->set_guard_inst(inst);
                     jit->get_tracer().push_trace(trace.get());
                     top->push_path(std::move(trace));
                     jit->get_tracer().set_tracing(true);
@@ -206,31 +212,33 @@ class Profiler {
         }
         void insert_guard(Trace* trace, uint32_t inst) {
             if (trace == nullptr) return;
-            uint32_t target = GET_IMM24(inst);
             uint8_t opcode = jit->get_vm().decode(inst);
             uint8_t* tptr = reinterpret_cast<uint8_t*>(trace->get_func());
-            uint32_t jmp_size = reinterpret_cast<uint32_t>(tptr - jit->get_assembler().get_buf());
+            T& assembler = jit->get_assembler();
+            X64::Register rax(X64::RAX, 8);
+            X64::Register rbx(X64::RBX, 8);
             switch(opcode) {
                 case OP_JB:
-                    jit->get_assembler().jle(jmp_size);
+                    assembler.jb((int8_t) 2);
                     break;
                 case OP_JE:
-                    jit->get_assembler().jne(jmp_size);
+                    assembler.je((int8_t) 2);
                     break;
                 case OP_JL:
-                    jit->get_assembler().jbe(jmp_size);
+                    assembler.jl((int8_t) 2);
                     break;
                 case OP_JBE:
-                    jit->get_assembler().jl(jmp_size);
+                    assembler.jbe((int8_t) 2);
                     break;
                 case OP_JLE:
-                    jit->get_assembler().jb(jmp_size);
+                    assembler.jle((int8_t) 2);
                     break;
                 case OP_JNE:
-                    jit->get_assembler().je(jmp_size);
+                    assembler.jne((int8_t) 2);
                     break;
-                    
             }
+            assembler.mov(rax, tptr);
+            assembler.jmp(rax);
 
         }
 };
@@ -426,7 +434,6 @@ class JITCompiler {
             if (trace == nullptr) 
                 return false;
 
-
             trace->push_inst(OP_RET << 24);
             trace->set_func(reinterpret_cast<exec_func>(this->assembler.get_buf() + this->assembler.get_buf_size()));
 
@@ -434,6 +441,19 @@ class JITCompiler {
             this->gen_x64(trace->get_bytecode());
             this->transfer_reg_state(trace, false, transfer_reg_x64);
             this->dump_output_into_file("binary_dump");
+            size_t n = trace->get_paths().size();
+            size_t guards[n];
+
+            if (trace->get_paths().size() != 0) {
+                for (auto& p : trace->get_paths()) {
+                    profiler.insert_guard(p.get(), trace->get_guard_inst());
+                    /* don't use recursion in production code 
+                     * TODO: rewrite iteratively
+                     * */
+
+                    compile_trace(p.get());
+                }
+            }
             
             return true;
         }
@@ -443,7 +463,6 @@ class JITCompiler {
 
                 uint32_t inst = this->vm.fetch();
                 this->profiler.profile(inst);
-                this->tracer.check_if_guard(inst);
                 this->tracer.capture_inst(inst);
 
                 if (!this->tracer.get_tracing()) {

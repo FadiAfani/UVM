@@ -35,5 +35,6 @@ void NativeAssembler::emit_byte(uint8_t byte) {
 const uint8_t* NativeAssembler::get_buf() { return this->buf; }
 size_t NativeAssembler::get_buf_size() { return this->buf_size; }
 size_t NativeAssembler::get_buf_cap() { return this->buf_cap; }
+void NativeAssembler::shift(int64_t amount) { this->buf_size += amount; }
 
 

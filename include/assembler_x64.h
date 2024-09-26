@@ -235,6 +235,8 @@ namespace X64 {
             }
             void cmp(Register ra, Register rb);
 
+            void jmp(Register r);
+
             template<typename T>
             void jb(T rel) {
                 emit_jcc(rel, 0x7f);
@@ -263,12 +265,12 @@ namespace X64 {
             void jne(T rel) {
                 emit_jcc(rel, 0x75);
             }
-
-
-
-
+            template<typename T>
+            void lea(Register dst, MemOp<T> src) {
+                emit_inst_rm({0x8d}, dst, src);
+            }
             
-    };
+        };
 
     }
 

@@ -63,3 +63,7 @@ void Assembler::cmp(Register ra, Register rb) {
     this->emit_inst_rr({0x3b}, ra, rb);
 }
 
+void Assembler::jmp(Register reg) {
+    emit_byte(0xff);
+    emit_byte( MOD_BYTE(3, 4, reg.encoding) );
+}

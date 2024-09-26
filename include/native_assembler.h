@@ -21,6 +21,7 @@ class NativeAssembler {
         size_t get_buf_cap();
         void make_space();
         void init_mmem();
+        void emit_byte(size_t i, uint8_t byte);
         void emit_byte(uint8_t byte);
         template<typename T>
         void emit_imm(T imm) {
@@ -30,6 +31,7 @@ class NativeAssembler {
             *(T*)(this->buf + this->buf_size) = imm;
             this->buf_size += sizeof(T);
         }
+        void shift(int64_t amount);
 
 
 };
