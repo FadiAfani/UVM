@@ -25,15 +25,12 @@ void transfer_reg_x64(X64::Assembler& x64_asm, VM* vm, unsigned int cpu_reg, Reg
 
 }
 
-int Trace::get_heat() { 
-    return this->heat; 
-}
 
 exec_func Trace::get_func() { 
     return this->func; 
 }
 
-std::vector<Reg>& Trace::get_saved_regs() {
+std::unordered_set<Reg>& Trace::get_saved_regs() {
     return this->saved_regs;
 }
 
@@ -41,14 +38,17 @@ const std::vector<std::unique_ptr<Trace>>& Trace::get_paths() {
     return this->paths;
 }
 
-uint32_t Trace::get_guard_inst() { return this->guard_inst; }
-
-void Trace::set_guard_inst(uint32_t inst) {
-    this->guard_inst = inst;
-}
 
 const std::vector<uint32_t>& Trace::get_bytecode() { 
     return this->bytecode; 
+}
+
+void Trace::set_guard_inst(uint32_t* inst) {
+    this->guard_inst = inst;
+}
+
+uint32_t* Trace::get_guard_inst() {
+    return this->guard_inst;
 }
 
 void Trace::set_func(exec_func func) {
@@ -62,13 +62,6 @@ void Trace::push_inst(uint32_t inst) {
 void Trace::push_path(std::unique_ptr<Trace> trace) {
     this->paths.push_back(std::move(trace));
 }
-
-void Trace::inc_heat() {
-    this->heat++;
-}
-
-
-
 
 
 

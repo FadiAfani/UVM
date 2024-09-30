@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <sys/mman.h>
+#include <unordered_set>
 #include "../lib/vector.h"
 #include "../include/vm.h"
 #include "../include/assembler_x64.h"
@@ -23,6 +24,7 @@
 
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
+#define TEMP_THRES 1
 
 typedef void (*exec_func)();
 
@@ -34,11 +36,10 @@ enum ArchType {
 class VM;
 
 class Trace {
-    uint32_t guard_inst;
-    int heat = 0;
+    uint32_t* guard_inst = nullptr;
     exec_func func = nullptr;
     std::vector<uint32_t> bytecode;
-    std::vector<Reg> saved_regs;
+    std::unordered_set<Reg> saved_regs;
     std::vector<std::unique_ptr<Trace>> paths;
 
     public:
@@ -46,9 +47,9 @@ class Trace {
         exec_func get_func();
         const std::vector<uint32_t>& get_bytecode();
         const std::vector<std::unique_ptr<Trace>>& get_paths();
-        uint32_t get_guard_inst();
-        void set_guard_inst(uint32_t inst);
-        std::vector<Reg>& get_saved_regs();
+        uint32_t* get_guard_inst();
+        void set_guard_inst(uint32_t* inst);
+        std::unordered_set<Reg>& get_saved_regs();
         void set_func(exec_func func);
         void push_inst(uint32_t inst);
         void push_path(std::unique_ptr<Trace> trace);
@@ -60,6 +61,7 @@ class Trace {
 
 template<class T>
 class Tracer {
+    std::unordered_map<uint32_t, std::unique_ptr<Trace>> traces;
     JITCompiler<T>* jit;
     std::stack<Trace*> active_traces;
     uint32_t* next_guard = nullptr;
@@ -76,6 +78,11 @@ class Tracer {
         void set_tracing(bool tracing) {
             this->tracing = tracing;
         }
+
+        void map_trace(std::unique_ptr<Trace> trace, uint32_t ip) {
+            traces.insert( {ip, std::move(trace)} );
+        }
+
         void capture_inst(uint32_t inst) {
             Trace* trace = peek_top_trace();
 
@@ -83,17 +90,7 @@ class Tracer {
                 return;
             preserve_reg(trace, inst);
             uint8_t opcode = jit->get_vm().decode(inst);
-
-            if (opcode != OP_JB
-                || opcode != OP_JE
-                || opcode != OP_JL
-                || opcode != OP_JBE
-                || opcode != OP_JLE
-                || opcode != OP_JNE
-                || opcode != OP_JMP
-               ) {
-                    trace->push_inst(inst);
-            }
+            trace->push_inst(inst);
 
         }
 
@@ -128,78 +125,10 @@ class Tracer {
                 || opcode == OP_MULT
                 || opcode == OP_DIV
                ) {
-                trace->get_saved_regs().push_back(rd);
+                trace->get_saved_regs().insert(rd);
             }
         }
 
-};
-
-template<class T>
-class Profiler {
-    std::unordered_map<uint32_t, std::unique_ptr<Trace>> trace_map;
-    JITCompiler<T>* jit;
-
-    public:
-        Profiler(JITCompiler<T>* jit) {
-            this->jit = jit;
-        }
-        void profile(uint32_t inst) {
-        
-            uint32_t prev_ip = jit->get_vm().get_reg(RIP).as_u32;
-            uint32_t ip;
-            Trace* top;
-            uint8_t opcode = jit->get_vm().decode(inst);
-
-            if (opcode == OP_JB
-                || opcode == OP_JE
-                || opcode == OP_JL
-                || opcode == OP_JBE
-                || opcode == OP_JLE
-                || opcode == OP_JNE
-                || opcode == OP_JMP
-               ) {
-
-                jit->get_vm().interpret(inst);
-                ip = jit->get_vm().get_reg(RIP).as_u32;
-                if (ip < prev_ip) {
-                    Trace* trace = this->get_trace(ip);
-                    if (trace != nullptr) {
-                        trace->inc_heat();
-                        jit->get_tracer().push_trace(trace);
-                        jit->get_tracer().set_tracing(false);
-                    } else {
-                        std::unique_ptr<Trace> trace = std::make_unique<Trace>();
-                        trace->set_guard_inst(inst);
-                        jit->get_tracer().push_trace(trace.get());
-                        this->map_trace(ip, std::move(trace));
-                        jit->get_tracer().set_tracing(true);
-                    }
-
-
-                /* handle cases where RIP advances forward 
-                 * examples include:
-                 * if-else if-else statements in high level languages 
-                 * */
-                } else if (ip == prev_ip + 1) {
-                    /* condition satisfied */
-                    jit->get_tracer().set_tracing(true);
-                    
-                } else if ((top = jit->get_tracer().peek_top_trace()) != nullptr) {
-                    /* condition unsatisfied */
-                    std::unique_ptr<Trace> trace = std::make_unique<Trace>();
-                    trace->set_guard_inst(inst);
-                    jit->get_tracer().push_trace(trace.get());
-                    top->push_path(std::move(trace));
-                    jit->get_tracer().set_tracing(true);
-                }
-
-
-            }
-        }
-
-        void map_trace(uint32_t ip, std::unique_ptr<Trace>trace) {
-            this->trace_map.insert( {ip, std::move(trace)} );
-        }
         Trace* get_trace(uint32_t ip) {
             Trace* t;
             try {
@@ -210,37 +139,43 @@ class Profiler {
 
             return t;
         }
-        void insert_guard(Trace* trace, uint32_t inst) {
-            if (trace == nullptr) return;
-            uint8_t opcode = jit->get_vm().decode(inst);
-            uint8_t* tptr = reinterpret_cast<uint8_t*>(trace->get_func());
-            T& assembler = jit->get_assembler();
-            X64::Register rax(X64::RAX, 8);
-            X64::Register rbx(X64::RBX, 8);
-            switch(opcode) {
-                case OP_JB:
-                    assembler.jb((int8_t) 2);
-                    break;
-                case OP_JE:
-                    assembler.je((int8_t) 2);
-                    break;
-                case OP_JL:
-                    assembler.jl((int8_t) 2);
-                    break;
-                case OP_JBE:
-                    assembler.jbe((int8_t) 2);
-                    break;
-                case OP_JLE:
-                    assembler.jle((int8_t) 2);
-                    break;
-                case OP_JNE:
-                    assembler.jne((int8_t) 2);
-                    break;
-            }
-            assembler.mov(rax, tptr);
-            assembler.jmp(rax);
 
+};
+
+template<class T>
+class Profiler {
+    std::unordered_map<uint32_t, int> loop_headers;
+    JITCompiler<T>* jit;
+
+    public:
+        Profiler(JITCompiler<T>* jit) {
+            this->jit = jit;
         }
+
+        void register_header(uint32_t ip) {
+            loop_headers.insert( {ip, 1} );
+        }
+
+        bool is_loop_header(uint32_t ip) {
+            return loop_headers.count(ip) > 0;
+        }
+
+        void profile(uint32_t ip) {
+            if (is_loop_header(ip)) {
+                loop_headers.at(ip)++;
+            }
+        }
+
+        bool is_hot(uint32_t ip) {
+            int temp;
+            if (is_loop_header(ip)) {
+                temp = loop_headers.at(ip);
+            } else {
+                return false;
+            }
+            return temp >= TEMP_THRES;
+        }
+
 };
 
 template<class T>
@@ -310,123 +245,117 @@ class JITCompiler {
             fd.close();
         }
 
-        void gen_x64(const std::vector<uint32_t>& bytecode) {
+        void gen_x64(uint32_t inst) {
 
             unsigned int rae;
             unsigned int rbe;
             unsigned int rde;
             X64::Assembler& assembler = this->get_assembler();
 
-            for (uint32_t inst : bytecode) {
-                uint8_t opcode = GET_OPCODE(inst);
-                rae = this->get_cpu_reg(GET_RA(inst));
-                rbe = this->get_cpu_reg(GET_RB(inst));
-                rde = this->get_cpu_reg(GET_RD(inst));
-                X64::Register ra(rae, 8);
-                X64::Register rb(rbe, 8);
-                X64::Register rd(rde, 8);
-                //printf("opcode: %d, ra: %d, rb: %d, rd: %d\n", opcode, GET_RA(inst), GET_RB(inst), GET_RD(inst));
+            uint8_t opcode = GET_OPCODE(inst);
+            rae = this->get_cpu_reg(GET_RA(inst));
+            rbe = this->get_cpu_reg(GET_RB(inst));
+            rde = this->get_cpu_reg(GET_RD(inst));
+            X64::Register ra(rae, 8);
+            X64::Register rb(rbe, 8);
+            X64::Register rd(rde, 8);
+            //printf("opcode: %d, ra: %d, rb: %d, rd: %d\n", opcode, GET_RA(inst), GET_RB(inst), GET_RD(inst));
 
 
-                switch(opcode) {
-                    case OP_MOV:
-                        assembler.mov(rd, ra);
-                        break;
-                    case OP_MOVI:
-                    {
-                        uint64_t imm = GET_IMM19(inst);
-                        assembler.mov(rd, imm);
-                        break;
-                    }
+            switch(opcode) {
+                case OP_MOV:
+                    assembler.mov(rd, ra);
+                    break;
+                case OP_MOVI:
+                {
+                    uint64_t imm = GET_IMM19(inst);
+                    assembler.mov(rd, imm);
+                    break;
+                }
 
-                    case OP_ADDI:
-                    {
-                        uint32_t imm = GET_IMM14(inst);
-                        assembler.add(ra, imm);
-                        assembler.mov(rd, ra);
-                        break;
-                    }
-                    case OP_SUBI:
-                    {
-                        uint32_t imm = GET_IMM19(inst);
-                        assembler.sub(ra, imm);
-                        assembler.mov(rd, ra);
-                        break;
-                    }
-                    case OP_ADD:
-                        assembler.add(ra, rb);
-                        assembler.mov(rd, ra);
-                        break;
-                    case OP_SUB:
-                        assembler.sub(ra, rb);
-                        assembler.mov(rd, ra);
-                        break;
-                    case OP_MULT:
-                        assembler.imul(ra, rb);
-                        assembler.mov(rd, ra);
-                        break;
-                    case OP_DIV:
-                        break;
-                    case OP_RET:
-                        assembler.ret();
-                        break;
-                    case OP_HALT:
-                        assembler.hlt();
-                        break;
-                    case OP_PUSH:
-                        assembler.push(rd);
-                        break;
-                    case OP_CALL:
-                        assembler.call(rd);
-                        break;
-                    case OP_CMP:
-                        assembler.cmp(ra, rb);
-                        break;
+                case OP_ADDI:
+                {
+                    uint32_t imm = GET_IMM14(inst);
+                    assembler.add(ra, imm);
+                    assembler.mov(rd, ra);
+                    break;
+                }
+                case OP_SUBI:
+                {
+                    uint32_t imm = GET_IMM19(inst);
+                    assembler.sub(ra, imm);
+                    assembler.mov(rd, ra);
+                    break;
+                }
+                case OP_ADD:
+                    assembler.add(ra, rb);
+                    assembler.mov(rd, ra);
+                    break;
+                case OP_SUB:
+                    assembler.sub(ra, rb);
+                    assembler.mov(rd, ra);
+                    break;
+                case OP_MULT:
+                    assembler.imul(ra, rb);
+                    assembler.mov(rd, ra);
+                    break;
+                case OP_DIV:
+                    break;
+                case OP_RET:
+                    assembler.ret();
+                    break;
+                case OP_HALT:
+                    assembler.hlt();
+                    break;
+                case OP_PUSH:
+                    assembler.push(rd);
+                    break;
+                case OP_CALL:
+                    assembler.call(rd);
+                    break;
+                case OP_CMP:
+                    assembler.cmp(ra, rb);
+                    break;
 
-                    case OP_LDR:
-                    {
-                        /* { ldr rd [ra + disp] }
-                         * mov rd, vm->memory
-                         * add ra, rd
-                         * mov rd, [ra + disp]
-                         * */
-                        int32_t disp = GET_IMM14(inst);
-                        assembler.mov(rd, reinterpret_cast<uint64_t>(assembler.get_buf()));
-                        assembler.add(ra, rd);
-                        assembler.mov(rd, X64::MemOp<int32_t>(ra, disp)); // use int32_t for now
-                        break;
-
-                    }
-                    case OP_STR:
-                    {
-                        /* { str rd [ra + disp] } 
-                         * mov rbx, vm->memory
-                         * add ra rbx
-                         * mov [ra + disp], rd
-                         * */
-                        int32_t disp = GET_IMM14(inst);
-                        X64::Register rbx(RBX, 8);
-                        assembler.mov(rbx, reinterpret_cast<uint64_t>(assembler.get_buf()));
-                        assembler.add(ra, rbx);
-                        assembler.mov(X64::MemOp<int32_t>(ra, disp), rd); // use int32_t for now
-                        break;
-                    }
-
-                    default:
-                        break;
+                case OP_LDR:
+                {
+                    /* { ldr rd [ra + disp] }
+                     * mov rd, vm->memory
+                     * add ra, rd
+                     * mov rd, [ra + disp]
+                     * */
+                    int32_t disp = GET_IMM14(inst);
+                    assembler.mov(rd, reinterpret_cast<uint64_t>(assembler.get_buf()));
+                    assembler.add(ra, rd);
+                    assembler.mov(rd, X64::MemOp<int32_t>(ra, disp)); // use int32_t for now
+                    break;
 
                 }
+                case OP_STR:
+                {
+                    /* { str rd [ra + disp] } 
+                     * mov rbx, vm->memory
+                     * add ra rbx
+                     * mov [ra + disp], rd
+                     * */
+                    int32_t disp = GET_IMM14(inst);
+                    X64::Register rbx(RBX, 8);
+                    assembler.mov(rbx, reinterpret_cast<uint64_t>(assembler.get_buf()));
+                    assembler.add(ra, rbx);
+                    assembler.mov(X64::MemOp<int32_t>(ra, disp), rd); // use int32_t for now
+                    break;
+                }
+
+                default:
+                    break;
+            
             }
         }
         void gen_arm(const std::vector<uint32_t>& bytecode);
 
-        /* simply transfers the entire state regardless of changes
-         * TODO: this method should only transfer modified state 
-         * */
-
         void transfer_reg_state(Trace* trace, bool to_cpu, const RegTransferFunc<T> tfunc) {
             for (auto p : trace->get_saved_regs()) {
-                tfunc(this->assembler, &this->vm, this->x64_reg.at(p), p, to_cpu);
+                tfunc(assembler, &vm, x64_reg.at(p), p, to_cpu);
             }
         }
         bool compile_trace(Trace* trace) {
@@ -435,50 +364,114 @@ class JITCompiler {
                 return false;
 
             trace->push_inst(OP_RET << 24);
-            trace->set_func(reinterpret_cast<exec_func>(this->assembler.get_buf() + this->assembler.get_buf_size()));
+            trace->set_func(reinterpret_cast<exec_func>(assembler.get_buf() + assembler.get_buf_size()));
 
-            this->transfer_reg_state(trace, true, transfer_reg_x64);
-            this->gen_x64(trace->get_bytecode());
-            this->transfer_reg_state(trace, false, transfer_reg_x64);
-            this->dump_output_into_file("binary_dump");
+            transfer_reg_state(trace, true, transfer_reg_x64);
+            for (auto inst : trace->get_bytecode()) {
+                uint8_t opcode = vm.decode(inst);
+                if (opcode == OP_JB
+                    || opcode == OP_JBE
+                    || opcode == OP_JL
+                    || opcode == OP_JLE
+                    || opcode == OP_JE
+                    || opcode == OP_JNE
+                    || opcode == OP_JMP
+                    ) {
+                    emit_guard(trace, inst);
+                } else {
+                    gen_x64(inst);
+                }
+
+            }
+            transfer_reg_state(trace, false, transfer_reg_x64);
             size_t n = trace->get_paths().size();
-            size_t guards[n];
 
             if (trace->get_paths().size() != 0) {
                 for (auto& p : trace->get_paths()) {
-                    profiler.insert_guard(p.get(), trace->get_guard_inst());
                     /* don't use recursion in production code 
                      * TODO: rewrite iteratively
                      * */
-
                     compile_trace(p.get());
                 }
             }
             
             return true;
         }
+
+        void emit_guard(Trace* trace, uint32_t inst) {
+            if (trace == nullptr) return;
+            uint8_t opcode = get_vm().decode(inst);
+            uint8_t* tptr = reinterpret_cast<uint8_t*>(trace->get_func());
+            X64::Register rax(X64::RAX, 8);
+            X64::Register rbx(X64::RBX, 8);
+            switch(opcode) {
+                case OP_JB:
+                    assembler.jb((int8_t) 2);
+                    break;
+                case OP_JE:
+                    assembler.je((int8_t) 2);
+                    break;
+                case OP_JL:
+                    assembler.jl((int8_t) 2);
+                    break;
+                case OP_JBE:
+                    assembler.jbe((int8_t) 2);
+                    break;
+                case OP_JLE:
+                    assembler.jle((int8_t) 2);
+                    break;
+                case OP_JNE:
+                    assembler.jne((int8_t) 2);
+                    break;
+            }
+            assembler.mov(rax, tptr);
+            assembler.jmp(rax);
+
+        }
+
         void run() {
+
+            uint32_t ip, prev_ip = vm.get_reg(RIP).as_u32;
 
             for (;;) {
 
                 uint32_t inst = this->vm.fetch();
-                this->profiler.profile(inst);
-                this->tracer.capture_inst(inst);
-
-                if (!this->tracer.get_tracing()) {
-                    Trace* tp = this->tracer.pop_trace();
-                    if (tp != nullptr && tp->get_func() == nullptr)
-                        this->compile_trace(tp);
+                ip = vm.get_reg(RIP).as_u32;
+                if (profiler.is_hot(ip)) {
+                    Trace* trace = tracer.get_trace(ip);
+                    if (trace != nullptr && trace->get_func() != nullptr)
+                        trace->get_func()();
                     
-                    if (tp != nullptr)
-                        tp->get_func()();
+                    else if (trace == nullptr && tracer.tracing) {
+                        trace = tracer.pop_trace();
+                        tracer.set_tracing(false);
+                        compile_trace(trace);
+                        trace->get_func()();
+                    } else {
+                        auto trace = std::make_unique<Trace>();
+                        tracer.map_trace(ip, std::move(trace));
+                        tracer.set_tracing(true);
+                        tracer.push_trace(trace.get());
 
-                } 
+                    }
+                } else if (profiler.is_loop_header(ip)) {
+                    profiler.profiler(ip);
+                } else if (ip < prev_ip) {
+                    profiler.register_header(ip);
+                } else if (ip > prev_ip + 1 && tracer.tracing) {
+                    Trace* cur = tracer.peek_top_trace();
+                    auto st = std::make_unique<Trace>();
+                    cur->push_path(std::move(st));
+                    tracer.capture_inst(inst);
+                    tracer.push_trace(st.get());
+                    tracer.set_tracing(true);
+                } else {
+                    tracer.capture_inst(inst);
+                }
 
-            int interp_res = this->vm.interpret(inst);
-            if (!interp_res) return;
-
-        
+                prev_ip = ip;
+                int interp_res = this->vm.interpret(inst);
+                if (!interp_res) return;
 
         }
     }
