@@ -75,11 +75,12 @@ class Tracer {
         bool get_tracing() {
             return tracing;
         }
+        std::stack<Trace*>& get_active_traces() { return this->active_traces; }
         void set_tracing(bool tracing) {
             this->tracing = tracing;
         }
 
-        void map_trace(std::unique_ptr<Trace> trace, uint32_t ip) {
+        void map_trace(uint32_t ip, std::unique_ptr<Trace> trace) {
             traces.insert( {ip, std::move(trace)} );
         }
 
@@ -130,9 +131,9 @@ class Tracer {
         }
 
         Trace* get_trace(uint32_t ip) {
-            Trace* t;
+            Trace* t = nullptr;
             try {
-                t = this->trace_map.at(ip).get();
+                t = traces.at(ip).get();
             } catch(std::out_of_range& e) {
                 return nullptr;
             }
@@ -358,11 +359,14 @@ class JITCompiler {
                 tfunc(assembler, &vm, x64_reg.at(p), p, to_cpu);
             }
         }
-        bool compile_trace(Trace* trace) {
-
-            if (trace == nullptr) 
-                return false;
-
+        void compile_trace(Trace* trace) {
+            if (trace == nullptr)
+                return;
+            for (auto& p : trace->get_paths()) {
+                compile_trace(p.get());
+            }
+            /* compile side exits first
+             * TODO: rewrite iteratively */
             trace->push_inst(OP_RET << 24);
             trace->set_func(reinterpret_cast<exec_func>(assembler.get_buf() + assembler.get_buf_size()));
 
@@ -384,18 +388,6 @@ class JITCompiler {
 
             }
             transfer_reg_state(trace, false, transfer_reg_x64);
-            size_t n = trace->get_paths().size();
-
-            if (trace->get_paths().size() != 0) {
-                for (auto& p : trace->get_paths()) {
-                    /* don't use recursion in production code 
-                     * TODO: rewrite iteratively
-                     * */
-                    compile_trace(p.get());
-                }
-            }
-            
-            return true;
         }
 
         void emit_guard(Trace* trace, uint32_t inst) {
@@ -406,22 +398,22 @@ class JITCompiler {
             X64::Register rbx(X64::RBX, 8);
             switch(opcode) {
                 case OP_JB:
-                    assembler.jb((int8_t) 2);
-                    break;
-                case OP_JE:
-                    assembler.je((int8_t) 2);
-                    break;
-                case OP_JL:
-                    assembler.jl((int8_t) 2);
-                    break;
-                case OP_JBE:
-                    assembler.jbe((int8_t) 2);
-                    break;
-                case OP_JLE:
                     assembler.jle((int8_t) 2);
                     break;
-                case OP_JNE:
+                case OP_JE:
                     assembler.jne((int8_t) 2);
+                    break;
+                case OP_JL:
+                    assembler.jbe((int8_t) 2);
+                    break;
+                case OP_JBE:
+                    assembler.jl((int8_t) 2);
+                    break;
+                case OP_JLE:
+                    assembler.jb((int8_t) 2);
+                    break;
+                case OP_JNE:
+                    assembler.je((int8_t) 2);
                     break;
             }
             assembler.mov(rax, tptr);
@@ -432,42 +424,47 @@ class JITCompiler {
         void run() {
 
             uint32_t ip, prev_ip = vm.get_reg(RIP).as_u32;
+            Trace* trace;
 
             for (;;) {
 
                 uint32_t inst = this->vm.fetch();
                 ip = vm.get_reg(RIP).as_u32;
-                if (profiler.is_hot(ip)) {
-                    Trace* trace = tracer.get_trace(ip);
-                    if (trace != nullptr && trace->get_func() != nullptr)
-                        trace->get_func()();
-                    
-                    else if (trace == nullptr && tracer.tracing) {
-                        trace = tracer.pop_trace();
-                        tracer.set_tracing(false);
-                        compile_trace(trace);
-                        trace->get_func()();
-                    } else {
+                if (ip < prev_ip) {
+                    profiler.register_header(ip);
+                }
+                profiler.profile(ip);
+                trace = tracer.get_trace(ip);
+                if (trace != nullptr && trace->get_func() != nullptr) {
+                    //trace->get_func()();
+                }
+                else if (trace != nullptr && tracer.get_active_traces().empty()){
+                    compile_trace(trace);
+                    //trace->get_func()();
+                }
+
+                else if (profiler.is_hot(ip)) {
+                    if (tracer.get_tracing())
+                        tracer.pop_trace();
+                    else {
                         auto trace = std::make_unique<Trace>();
+                        tracer.push_trace(trace.get());
                         tracer.map_trace(ip, std::move(trace));
                         tracer.set_tracing(true);
-                        tracer.push_trace(trace.get());
-
                     }
-                } else if (profiler.is_loop_header(ip)) {
-                    profiler.profiler(ip);
-                } else if (ip < prev_ip) {
-                    profiler.register_header(ip);
-                } else if (ip > prev_ip + 1 && tracer.tracing) {
-                    Trace* cur = tracer.peek_top_trace();
+                }
+
+
+                else if (ip > prev_ip + 1 && tracer.get_tracing()) {
+                    trace = tracer.peek_top_trace();
                     auto st = std::make_unique<Trace>();
-                    cur->push_path(std::move(st));
+                    trace->push_path(std::move(st));
                     tracer.capture_inst(inst);
                     tracer.push_trace(st.get());
-                    tracer.set_tracing(true);
-                } else {
-                    tracer.capture_inst(inst);
                 }
+
+                if (tracer.get_tracing())
+                    tracer.capture_inst(inst);
 
                 prev_ip = ip;
                 int interp_res = this->vm.interpret(inst);
