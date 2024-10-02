@@ -1,19 +1,18 @@
 main:
     movi r1 10
     movi r2 0
-    movi r5 77
+    movi r5 5
 
 loop:
     addi r2 r2 1
     cmp r2 r5
-    je br
+    jl br
     cmp r2 r1
     jl loop
     ret
 
 br:
-    addi r1 r1 93
     movi r0 9
-    halt
+    jmp loop
 
 

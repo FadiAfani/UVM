@@ -91,7 +91,17 @@ class Tracer {
                 return;
             preserve_reg(trace, inst);
             uint8_t opcode = jit->get_vm().decode(inst);
-            trace->push_inst(inst);
+
+            if (opcode != OP_JMP
+                && opcode != OP_JB
+                && opcode != OP_JBE
+                && opcode != OP_JLE
+                && opcode != OP_JL
+                && opcode != OP_JE
+                && opcode != OP_JNE) {
+
+                trace->push_inst(inst);
+            }
 
         }
 
@@ -360,6 +370,7 @@ class JITCompiler {
             }
         }
         void compile_trace(Trace* trace) {
+            printf("compiled\n");
             if (trace == nullptr)
                 return;
             for (auto& p : trace->get_paths()) {
@@ -396,24 +407,25 @@ class JITCompiler {
             uint8_t* tptr = reinterpret_cast<uint8_t*>(trace->get_func());
             X64::Register rax(X64::RAX, 8);
             X64::Register rbx(X64::RBX, 8);
+            int8_t skip_size = 12;
             switch(opcode) {
                 case OP_JB:
-                    assembler.jle((int8_t) 2);
+                    assembler.jle(skip_size);
                     break;
                 case OP_JE:
-                    assembler.jne((int8_t) 2);
+                    assembler.jne(skip_size);
                     break;
                 case OP_JL:
-                    assembler.jbe((int8_t) 2);
+                    assembler.jbe(skip_size);
                     break;
                 case OP_JBE:
-                    assembler.jl((int8_t) 2);
+                    assembler.jl(skip_size);
                     break;
                 case OP_JLE:
-                    assembler.jb((int8_t) 2);
+                    assembler.jb(skip_size);
                     break;
                 case OP_JNE:
-                    assembler.je((int8_t) 2);
+                    assembler.je(skip_size);
                     break;
             }
             assembler.mov(rax, tptr);
@@ -444,8 +456,16 @@ class JITCompiler {
                 }
 
                 else if (profiler.is_hot(ip)) {
-                    if (tracer.get_tracing())
+                    if (ip > prev_ip + 1 && tracer.get_tracing()) {
+                        trace = tracer.peek_top_trace();
+                        auto st = std::make_unique<Trace>();
+                        trace->push_path(std::move(st));
+                        trace->push_inst(inst);
+                        tracer.push_trace(st.get());
+                    }
+                    else if (tracer.get_tracing()) {
                         tracer.pop_trace();
+                    }
                     else {
                         auto trace = std::make_unique<Trace>();
                         tracer.push_trace(trace.get());
@@ -455,16 +475,10 @@ class JITCompiler {
                 }
 
 
-                else if (ip > prev_ip + 1 && tracer.get_tracing()) {
-                    trace = tracer.peek_top_trace();
-                    auto st = std::make_unique<Trace>();
-                    trace->push_path(std::move(st));
-                    tracer.capture_inst(inst);
-                    tracer.push_trace(st.get());
-                }
 
-                if (tracer.get_tracing())
+                if (tracer.get_tracing()) {
                     tracer.capture_inst(inst);
+                }
 
                 prev_ip = ip;
                 int interp_res = this->vm.interpret(inst);
