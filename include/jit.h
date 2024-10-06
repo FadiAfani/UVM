@@ -164,7 +164,7 @@ class Profiler {
         }
 
         void register_header(uint32_t ip) {
-            loop_headers.insert( {ip, 1} );
+            loop_headers.insert( {ip, 0} );
         }
 
         bool is_loop_header(uint32_t ip) {
@@ -442,43 +442,31 @@ class JITCompiler {
 
                 uint32_t inst = this->vm.fetch();
                 ip = vm.get_reg(RIP).as_u32;
-                if (ip < prev_ip) {
+                if (ip < prev_ip) 
                     profiler.register_header(ip);
-                }
+                
                 profiler.profile(ip);
                 trace = tracer.get_trace(ip);
-                if (trace != nullptr && trace->get_func() != nullptr) {
+                if (trace == nullptr && profiler.is_hot(ip)) {
+                    auto trace = std::make_unique<Trace>();
+                    tracer.push_trace(trace.get());
+                    tracer.map_trace(ip, std::move(trace));
+                    tracer.set_tracing(true);
+                } else if (prev_ip + 1 < ip && tracer.get_tracing()) {
+                    Trace* top = tracer.pop_trace();
+                    tracer.push_trace(top);
+                    auto branch = std::make_unique<Trace>();
+                    top->push_path(std::move(branch));
+                    tracer.push_trace(branch.get());
+                }
+                else if (trace != nullptr && trace->get_func() != nullptr) {
                     //trace->get_func()();
                 }
-                else if (trace != nullptr && tracer.get_active_traces().empty()){
+                else if (trace != nullptr && tracer.get_active_traces().empty()) {
                     compile_trace(trace);
                     //trace->get_func()();
                 }
-
-                else if (profiler.is_hot(ip)) {
-                    if (ip > prev_ip + 1 && tracer.get_tracing()) {
-                        trace = tracer.peek_top_trace();
-                        auto st = std::make_unique<Trace>();
-                        trace->push_path(std::move(st));
-                        trace->push_inst(inst);
-                        tracer.push_trace(st.get());
-                    }
-                    else if (tracer.get_tracing()) {
-                        tracer.pop_trace();
-                    }
-                    else {
-                        auto trace = std::make_unique<Trace>();
-                        tracer.push_trace(trace.get());
-                        tracer.map_trace(ip, std::move(trace));
-                        tracer.set_tracing(true);
-                    }
-                }
-
-
-
-                if (tracer.get_tracing()) {
-                    tracer.capture_inst(inst);
-                }
+                tracer.capture_inst(inst);
 
                 prev_ip = ip;
                 int interp_res = this->vm.interpret(inst);
