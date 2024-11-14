@@ -57,8 +57,27 @@ namespace X64 {
         }
     };
 
+    const Register rax(RAX, 8);
+    const Register rbx(RBX, 8);
+    const Register rcx(RCX, 8);
+    const Register rdx(RDX, 8);
+    const Register rsi(RSI, 8);
+    const Register rdi(RDI, 8);
+    const Register rbp(RBP, 8);
+    const Register rsp(RSP, 8);
+
+    const Register eax(RAX, 4);
+    const Register ebx(RBX, 4);
+    const Register ecx(RCX, 4);
+    const Register edx(RDX, 4);
+    const Register esi(RSI, 4);
+    const Register edi(RDI, 4);
+    const Register ebp(RBP, 4);
+    const Register esp(RSP, 4);
+
 
     class Assembler : public NativeAssembler {
+
 
         void emit_inst_rr(std::initializer_list<uint8_t> op,  Register dst, Register src);
         template<typename T>
@@ -90,8 +109,9 @@ namespace X64 {
 
         template<typename T, typename U>
         void emit_inst_mi(std::initializer_list<uint8_t> op, uint8_t opex, MemOp<U> dst, T imm) {
-            if (sizeof(imm) > 8 || sizeof(U) > 4 || dst.reg.size > 8)
+            if (sizeof(imm) > 8 || sizeof(U) > 4 || dst.reg.size > 8) {
                 throw std::logic_error("malformed instruction: memory/immediate");
+            }
 
             EMIT_REX(dst.reg, REX(1,0,0,0));
             for (auto x : op) {
@@ -118,6 +138,12 @@ namespace X64 {
         }
 
         public:
+            Register regs64[RDI];
+            Register regs32[RDI];
+            Register regs16[RDI]; 
+            Register regs8[RDI];
+
+
             void mov(Register dst, Register src);
             template<typename T>
             void mov(Register dst, MemOp<T> src) {
@@ -268,6 +294,20 @@ namespace X64 {
             template<typename T>
             void lea(Register dst, MemOp<T> src) {
                 emit_inst_rm({0x8d}, dst, src);
+            }
+
+            Assembler() {
+                for (int i = 0; i < RDI; i++) {
+                    regs64[i].encoding = i;
+                    regs32[i].encoding = i;
+                    regs16[i].encoding = i;
+                    regs8[i].encoding = i;
+
+                    regs64[i].size = 8;
+                    regs32[i].size = 4;
+                    regs16[i].size = 2;
+                    regs8[i].size = 1;
+                }
             }
             
         };

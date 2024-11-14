@@ -17,13 +17,21 @@ void VM::set_reg(std::stack<Reg>& mod_regs, Word val, Reg r) {
     mod_regs.push(r);
     this->regs[r] = val;
 }
-const Word& VM::get_reg(Reg r) {
+
+Word& VM::get_reg(Reg r) {
     return this->regs[r];
 }
 
-Word& VM::get_reg_as_ref(Reg r) {
-    return this->regs[r];
+Word* VM::get_reg_array() {
+    return this->regs;
 }
+
+Word* VM::get_reg_as_ref(Reg r) {
+    return &this->regs[r];
+}
+
+
+const uint32_t* VM::get_memory() { return this->memory; }
 
 uint32_t VM::fetch() {
     return this->memory[ this->regs[RIP].as_u32++ ];

@@ -1,10 +1,6 @@
 #include "../include/jit.h"
-#include <fstream>
-#include <stdexcept>
 #include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
-#include <utility>
 #include <vector>
 
 
@@ -25,6 +21,8 @@ void transfer_reg_x64(X64::Assembler& x64_asm, VM* vm, unsigned int cpu_reg, Reg
 
 }
 
+std::unordered_map<uint32_t, ExitData>& Trace::get_exits() { return this->exits; }
+
 
 exec_func Trace::get_func() { 
     return this->func; 
@@ -34,34 +32,34 @@ std::unordered_set<Reg>& Trace::get_saved_regs() {
     return this->saved_regs;
 }
 
-const std::vector<std::unique_ptr<Trace>>& Trace::get_paths() {
-    return this->paths;
-}
 
-
-const std::vector<uint32_t>& Trace::get_bytecode() { 
+const std::vector<InstData>& Trace::get_bytecode() { 
     return this->bytecode; 
-}
-
-void Trace::set_guard_inst(uint32_t* inst) {
-    this->guard_inst = inst;
-}
-
-uint32_t* Trace::get_guard_inst() {
-    return this->guard_inst;
 }
 
 void Trace::set_func(exec_func func) {
     this->func = func; 
 }
 
-void Trace::push_inst(uint32_t inst) {
-    this->bytecode.push_back(inst);
+void Trace::push_inst(uint32_t inst, uint32_t ip) {
+    InstData data;
+    data.ip = ip;
+    data.inst = inst;
+    this->bytecode.push_back(data);
 }
 
-void Trace::push_path(std::unique_ptr<Trace> trace) {
-    this->paths.push_back(std::move(trace));
+float Trace::get_freq() {
+    if (this->trials == 0) return 1;
+    return (float)(this->execs)/this->trials;
 }
 
+void Trace::exec() {
+    if (this->func != nullptr) {
+        long v = this->func();
+        if (v > 0)
+            this->execs++;
+        this->trials++;
+    }
+}
 
 

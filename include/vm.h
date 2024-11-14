@@ -27,9 +27,6 @@
 #define GET_IMM24(inst) ( GET_IMM(inst, 24) )
 
 
-typedef void (*exec_func)(); 
-
-
 /* R0-R7 general purpose 
  * R8-R15 floating-point 
  * RIP - instruction pointer
@@ -154,8 +151,10 @@ class VM {
     public:
         VM();
         void set_reg(std::stack<Reg>& mod_regs, Word val, Reg reg);
-        const Word& get_reg(Reg r);
-        Word& get_reg_as_ref(Reg r);
+        Word* get_reg_as_ref(Reg r);
+        Word* get_reg_array();
+        Word& get_reg(Reg r);
+        const uint32_t* get_memory();
         uint32_t fetch();
         uint8_t decode(uint32_t inst);
         uint32_t read_memory(uint32_t addr);

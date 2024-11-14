@@ -2,14 +2,21 @@ main:
     movi r1 10
     movi r2 0
     movi r5 5
+    movi r4 8
 
 loop:
     addi r2 r2 1
     cmp r2 r5
     jl br
+    cmp r2 r4
+    jl brr
     cmp r2 r1
     jl loop
     ret
+
+brr:
+    movi r0 100
+    jmp loop
 
 br:
     movi r0 9

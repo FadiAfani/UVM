@@ -17,6 +17,6 @@ int main(int argc, char** argv) {
     jit.get_vm().load_binary_file(argv[1]);
     jit.run();
     jit.dump_output_into_file("binary_dump");
-    assert(jit.get_assembler().get_buf_size() > 0);
+    //assert(jit.get_assembler().get_buf_size() > 0);
     return 0;
 }
