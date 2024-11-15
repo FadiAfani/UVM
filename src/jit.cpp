@@ -33,7 +33,7 @@ std::unordered_set<Reg>& Trace::get_saved_regs() {
 }
 
 
-const std::vector<InstData>& Trace::get_bytecode() { 
+const std::vector<uint32_t>& Trace::get_bytecode() { 
     return this->bytecode; 
 }
 
@@ -41,11 +41,8 @@ void Trace::set_func(exec_func func) {
     this->func = func; 
 }
 
-void Trace::push_inst(uint32_t inst, uint32_t ip) {
-    InstData data;
-    data.ip = ip;
-    data.inst = inst;
-    this->bytecode.push_back(data);
+void Trace::push_inst(uint32_t inst) {
+    this->bytecode.push_back(inst);
 }
 
 float Trace::get_freq() {

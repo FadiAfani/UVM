@@ -25,7 +25,7 @@
 /* REX prefix */
 #define REX(W,R,X,B) ( 0x40 | W << 3 | R << 2 | X << 1 | B )
 #define TEMP_THRES 1
-#define GUARD_SIZE 6
+#define GUARD_SIZE 11
 
 // returns the address of the side_exit used
 typedef long (*exec_func)();
@@ -52,7 +52,7 @@ struct InstData {
 
 class Trace {
     exec_func func = nullptr;
-    std::vector<InstData> bytecode;
+    std::vector<uint32_t> bytecode;
     std::unordered_set<Reg> saved_regs;
     std::unordered_map<uint32_t, std::unique_ptr<Trace>> paths;
     std::unordered_map<uint32_t, ExitData> exits;
@@ -62,13 +62,13 @@ class Trace {
     public:
         int get_heat();
         exec_func get_func();
-        const std::vector<InstData>& get_bytecode();
+        const std::vector<uint32_t>& get_bytecode();
         const std::vector<std::unique_ptr<Trace>>& get_paths();
         std::unordered_map<uint32_t, ExitData>& get_exits();
         std::unordered_set<Reg>& get_saved_regs();
         void set_func(exec_func func);
         void register_exit(uint32_t ip, uint32_t dst, uint32_t inst);
-        void push_inst(uint32_t ip, uint32_t inst);
+        void push_inst(uint32_t ip);
         Reg pop_reg();
         void inc_heat();
         void visit_exit(long ip);
@@ -123,28 +123,7 @@ class Tracer {
 
             if (state.curt == nullptr) 
                 return;
-            preserve_reg(state.curt, inst);
-            uint8_t opcode = jit->get_vm().decode(inst);
-
-            if (opcode == OP_JB
-                || opcode == OP_JBE
-                || opcode == OP_JLE
-                || opcode == OP_JL
-                || opcode == OP_JE
-                || opcode == OP_JNE) {
-
-                auto vm = jit->get_vm();
-                uint32_t prev_ip = vm.get_reg(RIP).as_u32;
-                vm.interpret(inst);
-                if (vm.get_reg(RIP).as_u32 == prev_ip + 1) {
-                    state.curt->push_inst(inst, prev_ip + 1);
-                }
-                
-            } else {
-                //printf("inst: %d\n", opcode);
-                state.curt->push_inst(inst, jit->get_vm().get_reg(RIP).as_u32);
-            }
-
+            state.curt->push_inst(inst);
         }
 
         void push_trace(Trace* trace) {
@@ -317,7 +296,6 @@ class JITCompiler {
             X64::Assembler& assembler = this->get_assembler();
 
             uint8_t opcode = GET_OPCODE(inst);
-            printf("opcode: %d\n", opcode);
 
             switch(opcode) {
                 case OP_MOV:
@@ -387,7 +365,15 @@ class JITCompiler {
                 case OP_CMP:
                     assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
                     assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv)->as_u64);
-                    assembler.cmp(X64::rax, X64::rbx);
+                    assembler.mov(X64::rcx, vm.get_reg_as_ref(RFLG));
+                    assembler.cmp(X64::rbx, X64::rax);
+                    assembler.mov(X64::rax, (int64_t) 1);
+                    assembler.cmovg(X64::rbx, X64::rax);
+                    assembler.mov(X64::rax, (int64_t) 0);
+                    assembler.cmove(X64::rbx, X64::rax);
+                    assembler.mov(X64::rax, (int64_t) -1);
+                    assembler.cmovl(X64::rbx, X64::rax);
+                    assembler.mov(X64::MemOp<int32_t>(X64::rcx, 0), X64::rbx);
                     break;
 
                 case OP_LDR:
@@ -427,28 +413,34 @@ class JITCompiler {
         }
         void compile_trace(Trace* trace) {
             uint32_t ip = vm.get_reg(RIP).as_u32;
-            trace->push_inst(OP_MOVI << 24 | R0 << 19, ip); // report successful execution
-            trace->push_inst(OP_RET << 24, ip + 1);
-            trace->set_func(reinterpret_cast<exec_func>(assembler.get_buf() + assembler.get_buf_size()));
+            trace->push_inst(OP_MOVI << 24 | R0 << 19); // report successful execution
+            trace->push_inst(OP_RET << 24);
 
-            //transfer_reg_state(trace, true, transfer_reg_x64);
             for (auto inst : trace->get_bytecode()) {
-                auto exits = trace->get_exits();
-                if (exits.count(inst.ip) > 0)
-                    emit_guard(inst.ip, exits.at(inst.ip));
+                uint8_t opcode = vm.decode(inst);
+                printf("opcode: %d\n", opcode);
+                if (opcode == OP_JMP)
+                    continue;
+                if (opcode == OP_JNE 
+                    || opcode == OP_JB
+                    || opcode == OP_JL
+                    || opcode == OP_JE
+                    || opcode == OP_JBE
+                    || opcode == OP_JLE) {
+                    emit_guard(inst);
+                }
                 else {
-                    //printf("inst: %d\n", GET_OPCODE(inst.inst));
-                    gen_x64(inst.inst);
+                    gen_x64(inst);
                 }
 
             }
-            //transfer_reg_state(trace, false, transfer_reg_x64);
+
+            trace->set_func(reinterpret_cast<exec_func>(assembler.get_buf() + assembler.get_buf_size()));
         }
 
-        void emit_guard(uint32_t ip, ExitData& exit) {
+        void emit_guard(uint32_t inst) {
             // exit trace and hand control back to the interpreter
-            uint8_t opcode = vm.decode(exit.inst);
-            X64::Register rax(X64::RAX, 8);
+            uint8_t opcode = vm.decode(inst);
             switch(opcode) {
                 case OP_JB:
                     assembler.jb(GUARD_SIZE);
@@ -470,9 +462,10 @@ class JITCompiler {
                     break;
                 default:
                     fprintf(stderr, "corrupted exit info\n");
+                    exit(EXIT_FAILURE);
                     break;
             }
-            assembler.mov(rax, ip);
+            assembler.mov(X64::rax, (int64_t) -1); // problem with move immediate
             assembler.ret();
         }
 
@@ -507,7 +500,7 @@ class JITCompiler {
                     state.looph = -1;
                     if (state.curt->get_func() == nullptr) 
                         compile_trace(state.curt);
-                    state.curt->exec();
+                    //state.curt->exec();
                     state.curt = nullptr;
                 }
 

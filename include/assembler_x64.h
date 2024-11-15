@@ -128,21 +128,16 @@ namespace X64 {
             int rel_size = sizeof(T);
             if (rel_size >= 2) {
                 emit_byte(0x0f);
-                emit_byte(op + 10);
+                emit_byte(op + 0x10);
             } else {
                 emit_byte(op);
             }
-            emit_imm(rel);
+            emit_imm((int32_t) rel);
 
 
         }
 
         public:
-            Register regs64[RDI];
-            Register regs32[RDI];
-            Register regs16[RDI]; 
-            Register regs8[RDI];
-
 
             void mov(Register dst, Register src);
             template<typename T>
@@ -155,20 +150,15 @@ namespace X64 {
             }
             template<typename T>
             void mov(Register dst, T imm) {
-                uint8_t op = 0xb8;
-                if (sizeof(T) == 1)
-                    op = 0x8a;
+                uint8_t op = sizeof(T) == 1 ? 0x8a : 0xb8;
                 this->emit_byte( REX(1,0,0,0) );
                 this->emit_byte(dst.encoding + op);
                 this->emit_imm(imm);
-
             }
 
             template<typename T, typename U>
             void mov(MemOp<U> dst, T imm) {
-                uint8_t op = 0xc7;
-                if (sizeof(T) == 1)
-                    op = 0xc6;
+                uint8_t op = sizeof(T) == 1 ? 0xc6: 0xc7;
                 this->emit_inst_mi( {op}, 0, dst, imm);
             }
 
@@ -291,23 +281,38 @@ namespace X64 {
             void jne(T rel) {
                 emit_jcc(rel, 0x75);
             }
+
             template<typename T>
             void lea(Register dst, MemOp<T> src) {
                 emit_inst_rm({0x8d}, dst, src);
             }
 
-            Assembler() {
-                for (int i = 0; i < RDI; i++) {
-                    regs64[i].encoding = i;
-                    regs32[i].encoding = i;
-                    regs16[i].encoding = i;
-                    regs8[i].encoding = i;
 
-                    regs64[i].size = 8;
-                    regs32[i].size = 4;
-                    regs16[i].size = 2;
-                    regs8[i].size = 1;
-                }
+            void cmovg(Register dst, Register src) {
+                emit_inst_rr({0x0f, 0x4f}, dst, src);
+            }
+            
+            void cmovl(Register dst, Register src) {
+                emit_inst_rr({0x0f, 0x4c}, dst, src);
+            }
+
+            void cmove(Register dst, Register src) {
+                emit_inst_rr({0x0f, 0x44}, dst, src);
+            }
+
+            template<typename T>
+            void cmovg(Register dst, MemOp<T> src) {
+                emit_inst_rm({0x0f, 0x4f}, dst, src);
+            }
+            
+            template<typename T>
+            void cmovl(Register dst, MemOp<T> src) {
+                emit_inst_rm({0x0f, 0x4c}, dst, src);
+            }
+
+            template<typename T>
+            void cmove(Register dst, MemOp<T> src) {
+                emit_inst_rm({0x0f, 0x44}, dst, src);
             }
             
         };
