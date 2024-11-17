@@ -50,13 +50,15 @@ float Trace::get_freq() {
     return (float)(this->execs)/this->trials;
 }
 
-void Trace::exec() {
+long Trace::exec() {
+    long v = -2;
     if (this->func != nullptr) {
-        long v = this->func();
-        if (v > 0)
+        v = this->func();
+        if (v == 0)
             this->execs++;
         this->trials++;
     }
+    return v;
 }
 
 

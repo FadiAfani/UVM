@@ -59,6 +59,11 @@ void Assembler::push(Register dst) {
     this->emit_byte(0x50 + dst.encoding);
 }
 
+void Assembler::pop(Register dst) {
+    this->emit_byte(0x8f);
+    this->emit_byte( MOD_BYTE(3, 0, dst.encoding) );
+}
+
 void Assembler::cmp(Register ra, Register rb) {
     this->emit_inst_rr({0x3b}, ra, rb);
 }

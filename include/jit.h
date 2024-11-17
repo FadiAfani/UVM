@@ -74,7 +74,7 @@ class Trace {
         void visit_exit(long ip);
         float get_freq();
         void set_freq(float freq);
-        void exec();
+        long exec();
 
 };
 
@@ -160,13 +160,19 @@ class Tracer {
         Trace* get_trace(uint32_t ip) {
             Trace* t = nullptr;
             if (headers.count(ip) > 0) {
-                if (headers.at(ip).tpq.empty())
-                    load_traces(ip);
-                t = headers.at(ip).tpq.top();
-                headers.at(ip).tpq.pop();
+                if (!headers.at(ip).tpq.empty()) {
+                    t = headers.at(ip).tpq.top();
+                    headers.at(ip).tpq.pop();
+                }
     
             }
             return t;
+        }
+
+        void insert_trace(uint32_t ip, Trace* trace) {
+            if (headers.count(ip) > 0) {
+                headers.at(ip).tpq.push(trace);
+            }
         }
 
         TracerState& get_state() { return this->state; }
@@ -363,6 +369,8 @@ class JITCompiler {
                     assembler.call(X64::rax);
                     break;
                 case OP_CMP:
+                    /* this is too much for a single instruction
+                     * TODO: find a better solution */
                     assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
                     assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv)->as_u64);
                     assembler.mov(X64::rcx, vm.get_reg_as_ref(RFLG));
@@ -412,9 +420,11 @@ class JITCompiler {
             }
         }
         void compile_trace(Trace* trace) {
+
+            trace->set_func(reinterpret_cast<exec_func>(this->get_assembler().get_buf() + this->get_assembler().get_buf_size()));
+
             uint32_t ip = vm.get_reg(RIP).as_u32;
-            trace->push_inst(OP_MOVI << 24 | R0 << 19); // report successful execution
-            trace->push_inst(OP_RET << 24);
+
 
             for (auto inst : trace->get_bytecode()) {
                 uint8_t opcode = vm.decode(inst);
@@ -435,7 +445,10 @@ class JITCompiler {
 
             }
 
-            trace->set_func(reinterpret_cast<exec_func>(assembler.get_buf() + assembler.get_buf_size()));
+
+            assembler.mov(X64::rax, (int64_t) 0);
+            assembler.ret();
+
         }
 
         void emit_guard(uint32_t inst) {
@@ -495,14 +508,21 @@ class JITCompiler {
                     state.curt = t.get();
                     state.looph = ip;
                     tracer.map_trace(ip, std::move(t));
+                    tracer.insert_trace(ip, state.curt);
                 } else if (state.recording && state.looph == ip) {
                     state.recording = false;
                     state.looph = -1;
                     if (state.curt->get_func() == nullptr) 
                         compile_trace(state.curt);
-                    //state.curt->exec();
+                    state.curt->exec();
                     state.curt = nullptr;
+                    tracer.insert_trace(ip, state.curt);
+
+                } else if (trace != nullptr) {
+                    trace->exec();
+                    tracer.insert_trace(ip, trace);
                 }
+
 
                 if (state.recording)
                     tracer.capture_inst(inst);

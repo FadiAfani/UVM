@@ -2,23 +2,23 @@ main:
     movi r1 10
     movi r2 0
     movi r5 5
-    movi r4 8
-    jmp loop
+    movi r4 2
+
+loop:
+    addi r2 r2 1
+    cmp r2 r5
+    jb exit
+    cmp r4 r2
+    jl if
+    jmp else
 
 if:
     movi r0 500
     jmp loop
 
 else:
-    movi r0 100
+    movi r0 10
     jmp loop
-
-loop:
-    addi r2 r2 1
-    cmp r2 r5
-    jb exit
-    jl if
-    jmp else
 
 exit:
     ret

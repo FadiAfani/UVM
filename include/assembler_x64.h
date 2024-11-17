@@ -244,6 +244,7 @@ namespace X64 {
             void ret();
             void hlt();
             void push(Register dst);
+            void pop(Register dst);
             template<typename T>
             void call(T label) {
                 this->emit_byte(0xe8);
