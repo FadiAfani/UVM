@@ -1,4 +1,6 @@
 #include "../include/lexer.hpp"
+#include <unordered_map>
+#include <iostream>
 
 int Lexer::get_col() { return col; }
 int Lexer::get_row() { return row; }
@@ -9,9 +11,6 @@ void Lexer::push_token(Token tok) { tokens.push_back(tok); }
 Lexer::Lexer(string _file_path) : asm_data(AsmData()) {
 
     file_path = _file_path;
-    row = 0;
-    col = 0;
-
 }
 
 void Lexer::tokenize_word(Token& tok) {
@@ -53,8 +52,6 @@ void Lexer::tokenize_number(Token& tok) {
         file.get();
         v += c;
     }
-
-
     
 }
 

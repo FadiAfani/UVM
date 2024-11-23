@@ -1,0 +1,12 @@
+main:
+    movi r0 1
+    movi r1 10
+
+loop:
+    addi r0 r0 1
+    cmp r0 r1
+    jl loop
+
+exit:
+    ret
+

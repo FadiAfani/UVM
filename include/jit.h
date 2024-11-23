@@ -60,7 +60,8 @@ class Trace {
     int trials = 0;
 
     public:
-        int get_heat();
+        int get_execs();
+        int get_trials();
         exec_func get_func();
         const std::vector<uint32_t>& get_bytecode();
         const std::vector<std::unique_ptr<Trace>>& get_paths();
@@ -102,14 +103,12 @@ struct TracerState {
 template<class T>
 class Tracer {
     std::unordered_map<uint32_t, HeaderData> headers;
-    std::stack<Trace*> active_traces;
     JITCompiler<T>* jit;
     TracerState state;
 
 
     public:
         Tracer(JITCompiler<T>* jit) : jit(jit) {}
-        std::stack<Trace*>& get_active_traces() { return this->active_traces; }
 
         void map_trace(uint32_t ip, std::unique_ptr<Trace> trace) {
             if (headers.count(ip) == 0) {
@@ -124,37 +123,6 @@ class Tracer {
             if (state.curt == nullptr) 
                 return;
             state.curt->push_inst(inst);
-        }
-
-        void push_trace(Trace* trace) {
-            active_traces.push(trace);
-        }
-        Trace* pop_trace() {
-            Trace* t = nullptr;
-            if (!active_traces.empty()) {
-                t = active_traces.top();
-                active_traces.pop();
-            } 
-            return t;
-        }
-        Trace* peek_top_trace() {
-            return active_traces.empty() ? nullptr : active_traces.top();
-        }
-        void preserve_reg(Trace* trace, uint32_t inst) {
-            if (trace == nullptr) return;
-            uint8_t opcode = jit->get_vm().decode(inst);
-            Reg rd = GET_RD(inst);
-            if (opcode == OP_MOV
-                || opcode == OP_MOVI
-                || opcode == OP_ADD
-                || opcode == OP_ADDI
-                || opcode == OP_SUB
-                || opcode == OP_SUBI
-                || opcode == OP_MULT
-                || opcode == OP_DIV
-               ) {
-                trace->get_saved_regs().insert(rd);
-            }
         }
 
         Trace* get_trace(uint32_t ip) {
@@ -176,15 +144,6 @@ class Tracer {
         }
 
         TracerState& get_state() { return this->state; }
-
-        void load_traces(uint32_t ip) {
-            if (headers.count(ip) > 0) {
-                for (auto& t : headers.at(ip).traces) {
-                    headers.at(ip).tpq.push(t.get());
-                }
-            }
-
-        }
 
 };
 
@@ -425,10 +384,8 @@ class JITCompiler {
 
             uint32_t ip = vm.get_reg(RIP).as_u32;
 
-
             for (auto inst : trace->get_bytecode()) {
                 uint8_t opcode = vm.decode(inst);
-                printf("opcode: %d\n", opcode);
                 if (opcode == OP_JMP)
                     continue;
                 if (opcode == OP_JNE 
@@ -494,6 +451,7 @@ class JITCompiler {
             TracerState& state = tracer.get_state();
 
             for (;;) {
+                printf("r0: %d\n", vm.get_reg(R0).as_u32);
 
                 uint32_t inst = this->vm.fetch();
                 ip = vm.get_reg(RIP).as_u32;
@@ -514,12 +472,12 @@ class JITCompiler {
                     state.looph = -1;
                     if (state.curt->get_func() == nullptr) 
                         compile_trace(state.curt);
-                    state.curt->exec();
-                    state.curt = nullptr;
+                    //state.curt->exec();
                     tracer.insert_trace(ip, state.curt);
+                    state.curt = nullptr;
 
-                } else if (trace != nullptr) {
-                    trace->exec();
+                } else if (trace != nullptr && !state.recording) {
+                    //trace->exec();
                     tracer.insert_trace(ip, trace);
                 }
 

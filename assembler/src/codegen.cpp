@@ -137,6 +137,7 @@ std::vector<uint32_t> Compiler::compile_label(const string& label) {
     }
     return vec;
 }
+
 void Compiler::compile() {
     this->output_file.open(this->fp);
     std::vector<pair<string, uint>> sorted_keys;

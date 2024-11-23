@@ -165,5 +165,42 @@ class VM {
         void run();
 };
 
+class UVMAssembler {
+    VM& vm;
+    size_t pos = 0;
+    void inline write_inst(uint8_t op, uint8_t rd, uint8_t ra, uint8_t rb);
+    void inline write_inst(uint8_t op, uint8_t rd, uint8_t ra, uint16_t imm);
+    void inline write_inst(uint8_t op, uint8_t rd, uint8_t ra);
+    void inline write_inst(uint8_t op, uint32_t label);
+    void inline write_inst(uint8_t op, uint8_t rd);
+
+    public:
+        UVMAssembler(VM& vm);
+        void add(uint8_t rd, uint8_t ra, uint8_t rb);
+        void addi(uint8_t rd, uint8_t ra, uint16_t imm);
+        void fadd(uint8_t rd, uint8_t ra, uint8_t rb);
+        void sub(uint8_t rd, uint8_t ra, uint8_t rb);
+        void subi(uint8_t rd, uint8_t ra, uint16_t imm);
+        void fsub(uint8_t rd, uint8_t ra, uint8_t rb);
+        void mult(uint8_t rd, uint8_t ra, uint8_t rb);
+        void fmult(uint8_t rd, uint8_t ra, uint8_t rb);
+        void div(uint8_t rd, uint8_t ra);
+        void fdiv(uint8_t rd, uint8_t ra);
+        void mov(uint8_t rd, uint8_t ra);
+        void call(uint32_t label);
+        void push(uint8_t rd);
+        void pop(uint8_t rd);
+        void ret();
+        void cmp(uint8_t rd, uint8_t ra);
+        void jmp(uint32_t label);
+        void je(uint32_t label);
+        void jle(uint32_t label);
+        void jl(uint32_t label);
+        void jb(uint32_t label);
+        void jbe(uint32_t label);
+        void jne(uint32_t label);
+        void halt();
+        void movi(uint8_t rd, uint32_t imm);
+};
 
 #endif

@@ -3,27 +3,28 @@
 
 JITCompiler<X64::Assembler> jit;
 VM& vm = jit.get_vm();
-X64::Assembler& assembler = jit.get_assembler();
+
+UVMAssembler uvm_asm(vm);
 
 TestSuite(jit_tests);
 
-/* moves value from vm register to cpu register 
- * adds 5 at the cpu level 
- * then transfers the register state back to the vm
- * */
-Test(test_state_transfer_x64, jit_tests) {
-    assembler.init_mmem();
-    Word& r = vm.get_reg_as_ref(R0);
-    r.as_int = 3;
-    transfer_reg_x64(assembler, &vm, RBX, R0, true);
-    std::vector<uint32_t> bc = {
-        OP_ADDI << 24 | R1 << 19 | R1 << 14 | 5,
-    };
-    jit.gen_x64(bc);
-    jit.dump_output_into_file("binary_dump");
-    //func();
-    cr_expect_eq(r.as_int, 8);
+std::string input;
 
+Test(test_one_branch, jit_tests) {
+    jit.get_assembler().init_mmem();
+
+    uvm_asm.movi(R0, 0);
+    uvm_asm.movi(R1, 10);
+    uvm_asm.addi(R0, R0, 1);
+    uvm_asm.cmp(R0, R1);
+    uvm_asm.jl(2);
+    uvm_asm.ret();
+
+    jit.run();
+    Trace* t = jit.get_tracer().get_trace(3);
+    cr_expect_neq(t, nullptr);
+    cr_expect(t->get_trials() > 0);
+    cr_expect_eq(vm.get_reg(R2).as_u64, 10);
 
 }
 

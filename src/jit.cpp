@@ -28,6 +28,14 @@ exec_func Trace::get_func() {
     return this->func; 
 }
 
+int Trace::get_execs() {
+    return this->execs;
+}
+
+int Trace::get_trials() {
+    return this->trials;
+}
+
 std::unordered_set<Reg>& Trace::get_saved_regs() {
     return this->saved_regs;
 }

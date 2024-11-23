@@ -92,6 +92,7 @@ int VM::interpret(uint32_t inst) {
         case OP_FDIV:
             BIN_OP_REG(this, inst, as_double, /);
             break;
+
         case OP_MOV:
         {
             Reg rd = GET_RD(inst);
@@ -280,6 +281,115 @@ void VM::run() {
     }
 }
 
+UVMAssembler::UVMAssembler(VM& vm) : vm(vm) {};
+
+void inline UVMAssembler::write_inst(uint8_t op, uint8_t rd, uint8_t ra, uint8_t rb) {
+    vm.set_memory_addr(this->pos++, op << 24 | rd << 19 | ra << 14 | rb << 9);
+}
 
 
+void inline UVMAssembler::write_inst(uint8_t op, uint8_t rd, uint8_t ra, uint16_t imm) {
+    vm.set_memory_addr(this->pos++, op << 24 | rd << 19 | ra << 14 | imm);
+}
+
+void inline UVMAssembler::write_inst(uint8_t op, uint8_t rd, uint8_t ra) {
+    vm.set_memory_addr(this->pos++, op << 24 | rd << 19 | ra << 14);
+}
+
+void inline UVMAssembler::write_inst(uint8_t op, uint8_t rd) {
+    vm.set_memory_addr(this->pos++, op << 24 | rd << 19);
+}
+
+void inline UVMAssembler::write_inst(uint8_t op, uint32_t label) {
+    vm.set_memory_addr(this->pos++, op << 24 | label);
+}
+
+void UVMAssembler::add(uint8_t rd, uint8_t ra, uint8_t rb) {
+    write_inst(OP_ADD, rd, ra, rb);
+}
+
+void UVMAssembler::addi(uint8_t rd, uint8_t ra, uint16_t imm) {
+    write_inst(OP_ADDI, rd, ra, imm);
+}
+
+void UVMAssembler::fadd(uint8_t rd, uint8_t ra, uint8_t rb) {
+    write_inst(OP_FADD, rd, ra, rb);
+}
+
+void UVMAssembler::sub(uint8_t rd, uint8_t ra, uint8_t rb) {
+    write_inst(OP_SUB, rd, ra, rb);
+}
+
+void UVMAssembler::subi(uint8_t rd, uint8_t ra, uint16_t imm) {
+    write_inst(OP_SUBI, rd, ra, imm);
+}
+
+void UVMAssembler::mult(uint8_t rd, uint8_t ra, uint8_t rb) {
+    write_inst(OP_MULT, rd, ra, rb);
+}
+
+void UVMAssembler::div(uint8_t rd, uint8_t ra) {
+    write_inst(OP_DIV, rd, ra);
+}
+
+void UVMAssembler::mov(uint8_t rd, uint8_t ra) {
+    write_inst(OP_MOV, rd, ra);
+}
+
+void UVMAssembler::call(uint32_t label) {
+    write_inst(OP_CALL, label);
+}
+
+void UVMAssembler::push(uint8_t rd) {
+    write_inst(OP_PUSH, rd);
+}
+
+void UVMAssembler::pop(uint8_t rd) {
+    write_inst(OP_POP, rd);
+}
+
+void UVMAssembler::ret() {
+    vm.set_memory_addr(this->pos++, OP_RET << 24);
+}
+
+void UVMAssembler::cmp(uint8_t rd, uint8_t ra) {
+    write_inst(OP_CMP, rd, ra);
+}
+
+void UVMAssembler::jmp(uint32_t label) {
+    write_inst(OP_JMP, label);
+}
+
+void UVMAssembler::jb(uint32_t label) {
+    write_inst(OP_JB, label);
+}
+
+void UVMAssembler::je(uint32_t label) {
+    write_inst(OP_JE, label);
+}
+
+void UVMAssembler::jl(uint32_t label) {
+    write_inst(OP_JL, label);
+}
+
+void UVMAssembler::jle(uint32_t label) {
+    write_inst(OP_JLE, label);
+}
+
+void UVMAssembler::jbe(uint32_t label) {
+    write_inst(OP_JBE, label);
+}
+
+void UVMAssembler::jne(uint32_t label) {
+    write_inst(OP_JNE, label);
+}
+
+void UVMAssembler::halt() {
+    vm.set_memory_addr(this->pos++, OP_HALT << 24);
+}
+
+void UVMAssembler::movi(uint8_t rd, uint32_t imm) {
+    vm.set_memory_addr(this->pos++, OP_MOVI << 24 | rd << 19 | imm);
+
+}
 

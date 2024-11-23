@@ -24,5 +24,7 @@ int main(int argc, char** argv) {
     Compiler compiler(parser.get_labels(), out);
     compiler.compile();
 
+    printf("n_tokens: %ld\n", lexer.get_tokens().size());
+
     return 0;
 }

@@ -15,8 +15,8 @@ using namespace std;
 class Lexer {
 
     private:
-        int col;
-        int row;
+        int col = 0;
+        int row = 0;
         vector<Token> tokens;
         string file_path;
         ifstream file;
