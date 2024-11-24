@@ -58,6 +58,7 @@ class Trace {
     std::unordered_map<uint32_t, ExitData> exits;
     int execs = 0;
     int trials = 0;
+    long last_exec_state = 0;
 
     public:
         int get_execs();
@@ -76,6 +77,8 @@ class Trace {
         float get_freq();
         void set_freq(float freq);
         long exec();
+        void set_last_exec_state(long state);
+        long get_last_exec_state();
 
 };
 
@@ -96,7 +99,7 @@ struct TracerState {
     Trace* curt = nullptr;
     long looph = -1;
     bool recording = false;
-    bool guard_fail_event = false;
+    int guard_fail_event;
 
 };
 
@@ -250,6 +253,11 @@ class JITCompiler {
             fd.close();
         }
 
+        void inline read_vmem_to_x64(const X64::Register reg, Reg vreg) {
+            assembler.mov(reg, vm.get_reg_as_ref(vreg));
+            assembler.mov(reg, X64::MemOp<>(reg, 0));
+        }
+
         void gen_x64(uint32_t inst) {
 
             Reg rav = GET_RA(inst);
@@ -264,7 +272,7 @@ class JITCompiler {
 
             switch(opcode) {
                 case OP_MOV:
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rbv)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
                     assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv));
                     assembler.mov(X64::MemOp<>(X64::rbx, 0), X64::rax);
                     break;
@@ -279,7 +287,7 @@ class JITCompiler {
                 case OP_ADDI:
                 {
                     uint32_t imm = GET_IMM14(inst);
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
                     assembler.add(X64::rax, imm);
                     assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv));
                     assembler.mov(X64::MemOp<uint32_t>(X64::rbx, 0), X64::rax);
@@ -288,7 +296,7 @@ class JITCompiler {
                 case OP_SUBI:
                 {
                     uint32_t imm = GET_IMM14(inst);
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
                     assembler.sub(X64::rax, imm);
                     assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv));
                     assembler.mov(X64::MemOp<uint32_t>(X64::rbx, 0), X64::rax);
@@ -296,15 +304,16 @@ class JITCompiler {
                 }
                 case OP_ADD:
 
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
-                    assembler.mov(X64::rbx, vm.get_reg_as_ref(rbv)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
+                    read_vmem_to_x64(X64::rbx, rbv);
                     assembler.add(X64::rax, X64::rbx);
                     assembler.mov(X64::rcx, vm.get_reg_as_ref(rdv));
                     assembler.mov(X64::MemOp<uint32_t>(X64::rcx, 0), X64::rax);
                     break;
                 case OP_SUB:
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
-                    assembler.mov(X64::rbx, vm.get_reg_as_ref(rbv)->as_u64);
+
+                    read_vmem_to_x64(X64::rax, rav);
+                    read_vmem_to_x64(X64::rbx, rbv);
                     assembler.sub(X64::rax, X64::rbx);
                     assembler.mov(X64::rcx, vm.get_reg_as_ref(rdv));
                     assembler.mov(X64::MemOp<uint32_t>(X64::rcx, 0), X64::rax);
@@ -320,20 +329,21 @@ class JITCompiler {
                     assembler.hlt();
                     break;
                 case OP_PUSH:
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rdv)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
                     assembler.push(X64::rax);
                     break;
                 case OP_CALL:
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rdv)->as_u64);
+                    read_vmem_to_x64(X64::rax, rav);
                     assembler.call(X64::rax);
                     break;
                 case OP_CMP:
                     /* this is too much for a single instruction
                      * TODO: find a better solution */
-                    assembler.mov(X64::rax, vm.get_reg_as_ref(rav)->as_u64);
-                    assembler.mov(X64::rbx, vm.get_reg_as_ref(rdv)->as_u64);
-                    assembler.mov(X64::rcx, vm.get_reg_as_ref(RFLG));
+
+                    read_vmem_to_x64(X64::rax, rav);
+                    read_vmem_to_x64(X64::rbx, rbv);
                     assembler.cmp(X64::rbx, X64::rax);
+                    assembler.mov(X64::rcx, vm.get_reg_as_ref(RFLG));
                     assembler.mov(X64::rax, (int64_t) 1);
                     assembler.cmovg(X64::rbx, X64::rax);
                     assembler.mov(X64::rax, (int64_t) 0);
@@ -402,7 +412,8 @@ class JITCompiler {
 
             }
 
-
+            assembler.mov(X64::rax , vm.get_reg_as_ref(RIP));
+            assembler.mov(X64::MemOp<>(X64::rax, 0), (int32_t) trace->get_bytecode().size());
             assembler.mov(X64::rax, (int64_t) 0);
             assembler.ret();
 
@@ -451,7 +462,6 @@ class JITCompiler {
             TracerState& state = tracer.get_state();
 
             for (;;) {
-                printf("r0: %d\n", vm.get_reg(R0).as_u32);
 
                 uint32_t inst = this->vm.fetch();
                 ip = vm.get_reg(RIP).as_u32;
@@ -460,7 +470,8 @@ class JITCompiler {
         
                 profiler.profile(ip);
                 trace = tracer.get_trace(ip);
-                if (trace == nullptr && profiler.is_hot(ip)) {
+
+                if ((trace == nullptr || trace->get_last_exec_state() == -1) && profiler.is_hot(ip)) {
                     auto t = std::make_unique<Trace>();
                     state.recording = true;
                     state.curt = t.get();
@@ -472,12 +483,14 @@ class JITCompiler {
                     state.looph = -1;
                     if (state.curt->get_func() == nullptr) 
                         compile_trace(state.curt);
-                    //state.curt->exec();
+                    long s = state.curt->exec();
+                    state.curt->set_last_exec_state(s);
                     tracer.insert_trace(ip, state.curt);
                     state.curt = nullptr;
 
-                } else if (trace != nullptr && !state.recording) {
-                    //trace->exec();
+                } else if (trace != nullptr) {
+                    long s = trace->exec();
+                    trace->set_last_exec_state(s);
                     tracer.insert_trace(ip, trace);
                 }
 

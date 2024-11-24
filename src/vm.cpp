@@ -119,7 +119,7 @@ int VM::interpret(uint32_t inst) {
             Reg ra = GET_RA(inst);
             if (this->regs[rd].as_double > this->regs[ra].as_double) 
                 this->regs[RFLG].as_int = 1;
-            else if (this->regs[rd].as_int < this->regs[ra].as_int)
+            else if (this->regs[rd].as_double < this->regs[ra].as_double)
                 this->regs[RFLG].as_int = -1;
             else 
                 this->regs[RFLG].as_int = 0;

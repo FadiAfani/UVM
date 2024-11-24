@@ -55,7 +55,7 @@ void Trace::push_inst(uint32_t inst) {
 
 float Trace::get_freq() {
     if (this->trials == 0) return 1;
-    return (float)(this->execs)/this->trials;
+    return (float)(this->execs)/(float)(this->trials);
 }
 
 long Trace::exec() {
@@ -65,8 +65,12 @@ long Trace::exec() {
         if (v == 0)
             this->execs++;
         this->trials++;
+        this->last_exec_state = v;
     }
     return v;
 }
+
+long Trace::get_last_exec_state() { return this->last_exec_state; }
+void Trace::set_last_exec_state(long state) { this->last_exec_state = state; }
 
 
